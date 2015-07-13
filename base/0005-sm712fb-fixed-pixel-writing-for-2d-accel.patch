@@ -1,0 +1,122 @@
+From d41a2b9f0b48f4d9433b3b9703c67be14b271daa Mon Sep 17 00:00:00 2001
+From: Icenowy <icenowy@outlook.com>
+Date: Mon, 13 Jul 2015 14:27:33 +0800
+Subject: sm712fb: fixed pixel writing for 2d accel
+
+I changed the pixel writing steps, therefore console
+locking is no longer needed.
+
+Since sm712 already works, we forced the accel to be
+enabled. The time used for `PAGER=cat time man bash`
+on my 8089D decreased from 2m30s to 30s.
+
+Signed-off-by: Icenowy <icenowy@outlook.com>
+---
+ drivers/video/fbdev/sm712fb/sm712fb_accel.c |  6 ++++--
+ drivers/video/fbdev/sm712fb/sm712fb_drv.c   | 17 +++++++++++++++++
+ 2 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/fbdev/sm712fb/sm712fb_accel.c b/drivers/video/fbdev/sm712fb/sm712fb_accel.c
+index 12fce1f..3b3e809 100644
+--- a/drivers/video/fbdev/sm712fb/sm712fb_accel.c
++++ b/drivers/video/fbdev/sm712fb/sm712fb_accel.c
+@@ -24,6 +24,7 @@
+ #include <linux/fb.h>
+ #include <linux/screen_info.h>
+ #include <linux/delay.h>
++#include <linux/console.h>
+ 
+ #include "sm712fb_drv.h"
+ #include "sm712fb_accel.h"
+@@ -159,13 +160,14 @@ void sm712fb_copyarea(struct fb_info *info, const struct fb_copyarea *area)
+ 	} else
+ 		direction = 0;
+ 
+-	sm712_write_dpr(sfb, DPR_SRC_COORDS, DPR_COORDS(sx, sy));
+-	sm712_write_dpr(sfb, DPR_DST_COORDS, DPR_COORDS(dx, dy));
+ 	sm712_write_dpr(sfb, DPR_SPAN_COORDS, DPR_COORDS(width, height));
++	sm712_write_dpr(sfb, DPR_DST_COORDS, DPR_COORDS(dx, dy));
++	sm712_write_dpr(sfb, DPR_SRC_COORDS, DPR_COORDS(sx, sy));
+ 	sm712_write_dpr(sfb, DPR_DE_CTRL,
+ 			DE_CTRL_START | DE_CTRL_ROP_ENABLE | direction |
+ 			(DE_CTRL_COMMAND_BITBLT << DE_CTRL_COMMAND_SHIFT) |
+ 			(DE_CTRL_ROP_SRC << DE_CTRL_ROP_SHIFT));
++
+ 	sm712_read_dpr(sfb, DPR_DE_CTRL);
+ 	sm712fb_wait(sfb);
+ }
+diff --git a/drivers/video/fbdev/sm712fb/sm712fb_drv.c b/drivers/video/fbdev/sm712fb/sm712fb_drv.c
+index 7f7cd4f..bd9e56b 100644
+--- a/drivers/video/fbdev/sm712fb/sm712fb_drv.c
++++ b/drivers/video/fbdev/sm712fb/sm712fb_drv.c
+@@ -14,6 +14,9 @@
+  * Copyright (C) 2014 Tom Li.
+  * Author:   Tom Li (Yifeng Li) <biergaizi@member.fsf.org>
+  *
++ * Copyright (C) 2015 Bob Cao
++ * Author:   Bob Cao (Cao Cheng) <bobcaocheng@163.com>
++ *
+  * This file is subject to the terms and conditions of the GNU General Public
+  * License. See the file COPYING in the main directory of this archive for
+  * more details.
+@@ -604,6 +607,8 @@ static void sm712_set_timing(struct sm712fb_info *sfb)
+ 
+ static void sm712fb_setmode(struct sm712fb_info *sfb)
+ {
++	dev_info(&sfb->pdev->dev, "sm712fb : Changing video mode\n");
++
+ 	switch (sfb->fb.var.bits_per_pixel) {
+ 	case 32:
+ 		sfb->fb.fix.visual = FB_VISUAL_TRUECOLOR;
+@@ -652,6 +657,8 @@ static void sm712fb_setmode(struct sm712fb_info *sfb)
+ 	sfb->height = sfb->fb.var.yres;
+ 	sfb->hz = 60;
+ 	sm712_set_timing(sfb);
++
++	dev_info(&sfb->pdev->dev, "sm712fb : Video mode changed\n");
+ }
+ 
+ static int sm712_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
+@@ -787,15 +794,22 @@ static inline void sm712_init_hw(struct sm712fb_info *sfb)
+ 		sm712_write_seq(sfb, 0x17, 0x30);
+ #endif
+ 
++
+ 	if (!sfb->accel) {
+ 		dev_info(&sfb->pdev->dev, "2d acceleration was disabled by user.\n");
+ 		sfb->fb.flags = FBINFO_FLAG_DEFAULT | FBINFO_HWACCEL_NONE;
++
++		sm712fb_setmode (sfb);
++
+ 		return;
+ 	}
+ 
+ 	if (sm712fb_init_accel(sfb) < 0) {
+ 		dev_info(&sfb->pdev->dev, "failed to enable 2d accleration.\n");
+ 		sfb->fb.flags = FBINFO_FLAG_DEFAULT | FBINFO_HWACCEL_NONE;
++
++		sm712fb_setmode (sfb);
++
+ 		return;
+ 	} else {
+ 		sm712fb_ops.fb_fillrect = sm712fb_fillrect;
+@@ -807,6 +821,7 @@ static inline void sm712_init_hw(struct sm712fb_info *sfb)
+ 				 FBINFO_READS_FAST;
+ 		dev_info(&sfb->pdev->dev, "sm712fb: enable 2d acceleration.\n");
+ 	}
++	sm712fb_setmode (sfb);
+ }
+ 
+ static int sm712fb_pci_probe(struct pci_dev *pdev,
+@@ -894,6 +909,8 @@ static int sm712fb_pci_probe(struct pci_dev *pdev,
+ 		goto fb_fail;
+ 	}
+ 
++	/* We are sure that accel works */
++	sfb->accel = 1;
+ 	sm712_init_hw(sfb);
+ 
+ 	/* can support 32 bpp */
+-- 
+2.4.4
+
