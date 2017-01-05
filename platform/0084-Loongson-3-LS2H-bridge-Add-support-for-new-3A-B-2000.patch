@@ -1,0 +1,131 @@
+From de4faff0c266c5ee1d3b576666cc3ead94102962 Mon Sep 17 00:00:00 2001
+From: zhangshuangshuang <zhangshuangshuang@ict.ac.cn>
+Date: Mon, 6 Jun 2016 09:11:44 +0800
+Subject: [PATCH 084/130] Loongson-3: LS2H bridge: Add support for new
+ 3A/B(2000)+2H address space
+
+New address space of Loongson3A/B(2000)+2H Board reserve physical
+memory space 256M~512M for GC1000, DMA memory space and GC1000 video
+memory space are affected.
+1.Fixed LS2H bridge dma high memory start
+2.GC1000 video buffer address modified to adjust new LS2H address space
+
+Change-Id: Ibb6cb2a546d058b43809f75247eb74326ee4764c
+Signed-off-by: ZhangShuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/loongson64/common/dma-swiotlb.c          |  7 ++--
+ drivers/video/fbdev/vivante/gc_hal_kernel_driver.c |  2 +-
+ drivers/video/fbdev/vivante/gc_hal_kernel_os.c     | 44 ++++++++++++++++------
+ 3 files changed, 37 insertions(+), 16 deletions(-)
+
+diff --git a/arch/mips/loongson64/common/dma-swiotlb.c b/arch/mips/loongson64/common/dma-swiotlb.c
+index 72034160..3cb4c2cd 100644
+--- a/arch/mips/loongson64/common/dma-swiotlb.c
++++ b/arch/mips/loongson64/common/dma-swiotlb.c
+@@ -109,14 +109,15 @@ static int loongson_dma_set_mask(struct device *dev, u64 mask)
+ 	return 0;
+ }
+ 
+-#define SZ_4G	0x100000000ULL
++#define SZ_4G			0x100000000ULL
++#define LS2H_DMA_HIGH_MEM_START 0x80000000ULL
+ 
+ static dma_addr_t loongson_ls2h_phys_to_dma(struct device *dev, phys_addr_t paddr)
+ {
+ 	dma_addr_t daddr;
+ 
+ 	daddr = (paddr < SZ_256M) ? paddr :
+-		(paddr - loongson_sysconf.high_physmem_start + SZ_256M);
++		(paddr - LS2H_DMA_HIGH_MEM_START);
+ 
+ 	return (daddr < SZ_4G) ? daddr : -1ULL; /* DMA address should be below 4GB */
+ }
+@@ -124,7 +125,7 @@ static dma_addr_t loongson_ls2h_phys_to_dma(struct device *dev, phys_addr_t padd
+ static phys_addr_t loongson_ls2h_dma_to_phys(struct device *dev, dma_addr_t daddr)
+ {
+ 	return (daddr < SZ_256M) ? daddr :
+-		(daddr + loongson_sysconf.high_physmem_start - SZ_256M);
++		(daddr + LS2H_DMA_HIGH_MEM_START);
+ }
+ 
+ static dma_addr_t loongson_rs780_phys_to_dma(struct device *dev, phys_addr_t paddr)
+diff --git a/drivers/video/fbdev/vivante/gc_hal_kernel_driver.c b/drivers/video/fbdev/vivante/gc_hal_kernel_driver.c
+index 3a6aaa80..23168bc9 100644
+--- a/drivers/video/fbdev/vivante/gc_hal_kernel_driver.c
++++ b/drivers/video/fbdev/vivante/gc_hal_kernel_driver.c
+@@ -1005,7 +1005,7 @@ int loongson_gpu_probe(struct platform_device *pdev)
+     printk("all reserved_size is %lx\n", all_reserved_size);
+ 
+     if(loongson_sysconf.vram_type == VRAM_TYPE_UMA)
+-        device_addr = bus_addr | 0x40000000;
++        device_addr = (bus_addr & 0xffffffff) | 0x40000000;
+     if(loongson_sysconf.vram_type == VRAM_TYPE_SP)
+         device_addr = bus_addr & 0xffffffff;
+ 
+diff --git a/drivers/video/fbdev/vivante/gc_hal_kernel_os.c b/drivers/video/fbdev/vivante/gc_hal_kernel_os.c
+index 2b80dede..6387117a 100644
+--- a/drivers/video/fbdev/vivante/gc_hal_kernel_os.c
++++ b/drivers/video/fbdev/vivante/gc_hal_kernel_os.c
+@@ -1602,11 +1602,22 @@ gckOS_MapMemory(
+         mdlMap->vma->vm_pgoff = 0;
+ 	if(loongson_sysconf.vram_type == VRAM_TYPE_UMA)
+ 	{
+-		res_tmp =remap_pfn_range(mdlMap->vma,
+-	                            mdlMap->vma->vm_start,
+-	                            (mdl->dmaHandle & 0x0fffffff ) >> PAGE_SHIFT,
+-	                            mdl->numPages*PAGE_SIZE,
+-	                            mdlMap->vma->vm_page_prot);
++		if(mdl->dmaHandle & 0xb0000000) {
++			/* 2h gpu device addr 0x5000_0000 */
++			res_tmp =remap_pfn_range(mdlMap->vma,
++					mdlMap->vma->vm_start,
++					(mdl->dmaHandle + (loongson_sysconf.uma_vram_addr - 0x50000000)) >> PAGE_SHIFT,
++					mdl->numPages*PAGE_SIZE,
++					mdlMap->vma->vm_page_prot);
++
++		} else {
++			/* 2h gpu device addr 0x4000_0000 */
++			res_tmp =remap_pfn_range(mdlMap->vma,
++					mdlMap->vma->vm_start,
++					(mdl->dmaHandle & 0x0fffffff ) >> PAGE_SHIFT,
++					mdl->numPages*PAGE_SIZE,
++					mdlMap->vma->vm_page_prot);
++		}
+ 	}
+ 
+ 	if(loongson_sysconf.vram_type == VRAM_TYPE_SP)
+@@ -2088,15 +2099,24 @@ gckOS_AllocateNonPagedMemory(
+ 	}
+ 
+         mdlMap->vma->vm_pgoff = 0;
+-
+ 	if(loongson_sysconf.vram_type == VRAM_TYPE_UMA)
+ 	{
+-		res_tmp = remap_pfn_range(mdlMap->vma,
+-	                            mdlMap->vma->vm_start,
+-	                            //mdl->dmaHandle >> PAGE_SHIFT,
+-	                            (mdl->dmaHandle & 0x0fffffff) >> PAGE_SHIFT,
+-	                            mdl->numPages * PAGE_SIZE,
+-	                            mdlMap->vma->vm_page_prot);
++		if(mdl->dmaHandle & 0xb0000000) {
++			/* 2h gpu device addr 0x5000_0000 */
++			res_tmp =remap_pfn_range(mdlMap->vma,
++					mdlMap->vma->vm_start,
++					(mdl->dmaHandle + (loongson_sysconf.uma_vram_addr - 0x50000000)) >> PAGE_SHIFT,
++					mdl->numPages*PAGE_SIZE,
++					mdlMap->vma->vm_page_prot);
++
++		} else {
++			/* 2h gpu device addr 0x4000_0000 */
++			res_tmp =remap_pfn_range(mdlMap->vma,
++					mdlMap->vma->vm_start,
++					(mdl->dmaHandle & 0x0fffffff ) >> PAGE_SHIFT,
++					mdl->numPages*PAGE_SIZE,
++					mdlMap->vma->vm_page_prot);
++		}
+ 	}
+ 
+ 	if(loongson_sysconf.vram_type == VRAM_TYPE_SP)
+-- 
+2.11.0
+

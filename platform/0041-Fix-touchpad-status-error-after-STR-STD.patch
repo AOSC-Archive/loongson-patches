@@ -1,0 +1,31 @@
+From d8c59fc556206f635b51019896e28cee84942268 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Wed, 6 Nov 2013 15:19:10 +0800
+Subject: [PATCH 041/130] Fix touchpad status error after STR/STD
+
+Change-Id: I9e758b0d51793596bbe7813238b1622648d36cc4
+Signed-off-by: Rui Wang <wangr@lemote.com>
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ drivers/input/mouse/sentelic.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/input/mouse/sentelic.c b/drivers/input/mouse/sentelic.c
+index 11c32ac8..d384b1f6 100644
+--- a/drivers/input/mouse/sentelic.c
++++ b/drivers/input/mouse/sentelic.c
+@@ -921,8 +921,8 @@ static int fsp_activate_protocol(struct psmouse *psmouse)
+ 		pad->flags |= FSPDRV_FLAG_EN_OPC;
+ 
+ 		/* Enable on-pad vertical and horizontal scrolling */
+-		fsp_onpad_vscr(psmouse, true);
+-		fsp_onpad_hscr(psmouse, true);
++		fsp_onpad_vscr(psmouse, pad->vscroll);
++		fsp_onpad_hscr(psmouse, pad->hscroll);
+ 	} else {
+ 		/* Enable absolute coordinates output for Cx/Dx hardware */
+ 		if (fsp_reg_write(psmouse, FSP_REG_SWC1,
+-- 
+2.11.0
+

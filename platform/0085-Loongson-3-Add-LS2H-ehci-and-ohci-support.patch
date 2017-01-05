@@ -1,0 +1,587 @@
+From ec9b7c3face5ec42ceb17df88c4bbcc3432de44b Mon Sep 17 00:00:00 2001
+From: zhangshuangshuang <zhangshuangshuang@ict.ac.cn>
+Date: Sun, 5 Jun 2016 12:35:09 +0800
+Subject: [PATCH 085/130] Loongson-3: Add LS2H ehci and ohci support
+
+drivers/usb/host/ehci-hcd.c modified by Junde Yhi.
+
+Change-Id: Ib900dba1535f651f7c4ae124f47fc7e9703736cd
+Signed-off-by: ZhangShuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/loongson64/loongson-3/ls2h-platform.c |   4 +-
+ drivers/usb/host/Kconfig                        |  13 ++
+ drivers/usb/host/ehci-hcd.c                     |   5 +
+ drivers/usb/host/ehci-ls2h.c                    | 209 +++++++++++++++++++++
+ drivers/usb/host/ohci-hcd.c                     |  18 ++
+ drivers/usb/host/ohci-ls2h.c                    | 229 ++++++++++++++++++++++++
+ 6 files changed, 476 insertions(+), 2 deletions(-)
+ create mode 100644 drivers/usb/host/ehci-ls2h.c
+ create mode 100644 drivers/usb/host/ohci-ls2h.c
+
+diff --git a/arch/mips/loongson64/loongson-3/ls2h-platform.c b/arch/mips/loongson64/loongson-3/ls2h-platform.c
+index aef11d11..f3863a64 100644
+--- a/arch/mips/loongson64/loongson-3/ls2h-platform.c
++++ b/arch/mips/loongson64/loongson-3/ls2h-platform.c
+@@ -183,7 +183,7 @@ static struct usb_ohci_pdata ls2h_ohci_platform_data = {
+ };
+
+ static struct platform_device ls2h_ohci_device = {
+-	.name           = "ohci-platform",
++	.name           = "ls2h-ohci",
+ 	.id             = 0,
+ 	.dev = {
+ 		.platform_data	= &ls2h_ohci_platform_data,
+@@ -212,7 +212,7 @@ static struct usb_ehci_pdata ls2h_ehci_platform_data = {
+ };
+
+ static struct platform_device ls2h_ehci_device = {
+-	.name	= "ehci-platform",
++	.name	= "ls2h-ehci",
+ 	.id	= 0,
+ 	.dev	= {
+ 		.platform_data	= &ls2h_ehci_platform_data,
+diff --git a/drivers/usb/host/Kconfig b/drivers/usb/host/Kconfig
+index 3bb08870..41898e81 100644
+--- a/drivers/usb/host/Kconfig
++++ b/drivers/usb/host/Kconfig
+@@ -264,6 +264,12 @@ config USB_W90X900_EHCI
+ 	---help---
+ 		Enables support for the W90X900 USB controller
+
++config USB_LS2H_EHCI
++        bool "Loongson2H EHCI support"
++        depends on USB_EHCI_HCD && CPU_LOONGSON3
++        ---help---
++          Enables support for the LOONGSON 2H EHCI controller
++
+ config USB_CNS3XXX_EHCI
+ 	bool "Cavium CNS3XXX EHCI Module (DEPRECATED)"
+ 	depends on ARCH_CNS3XXX
+@@ -387,6 +393,13 @@ config USB_OHCI_HCD
+
+ if USB_OHCI_HCD
+
++config USB_LS2H_OHCI
++        bool "Loongson2H OHCI support"
++        depends on USB_OHCI_HCD && CPU_LOONGSON3
++        ---help---
++          Enables support for the LOONGSON 2H OHCI controller
++
++
+ config USB_OHCI_HCD_OMAP1
+ 	tristate "OHCI support for OMAP1/2 chips"
+ 	depends on ARCH_OMAP1
+diff --git a/drivers/usb/host/ehci-hcd.c b/drivers/usb/host/ehci-hcd.c
+index 48c92bf7..dc5b0b08 100644
+--- a/drivers/usb/host/ehci-hcd.c
++++ b/drivers/usb/host/ehci-hcd.c
+@@ -1296,6 +1296,11 @@ MODULE_LICENSE ("GPL");
+ #define        PLATFORM_DRIVER         ehci_mv_driver
+ #endif
+
++#ifdef CONFIG_USB_LS2H_EHCI
++#include "ehci-ls2h.c"
++#define PLATFORM_DRIVER         ehci_ls2h_driver
++#endif
++
+ static int __init ehci_hcd_init(void)
+ {
+ 	int retval = 0;
+diff --git a/drivers/usb/host/ehci-ls2h.c b/drivers/usb/host/ehci-ls2h.c
+new file mode 100644
+index 00000000..241f1ae2
+--- /dev/null
++++ b/drivers/usb/host/ehci-ls2h.c
+@@ -0,0 +1,209 @@
++/*
++ *  Copyright (C) 2013, Loongson Technology Corporation Limited, Inc.
++ *
++ *  This program is free software; you can distribute it and/or modify it
++ *  under the terms of the GNU General Public License (Version 2) as
++ *  published by the Free Software Foundation.
++ *
++ *  This program is distributed in the hope it will be useful, but WITHOUT
++ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ *  for more details.
++ *
++ */
++
++#include <linux/platform_device.h>
++
++/* FIXME: Power Managment is un-ported so temporarily disable it */
++#undef CONFIG_PM
++
++int usb_hcd_ls2h_probe(const struct hc_driver *driver,
++		       struct platform_device *pdev)
++{
++	struct ls2h_usbh_data *pdata;
++	struct usb_hcd *hcd;
++	struct resource *res;
++	int irq;
++	int retval;
++
++	pr_debug("initializing Loongson2H EHCI USB Controller\n");
++
++	/* Need platform data for setup */
++	pdata = (struct ls2h_usbh_data *)pdev->dev.platform_data;
++	if (!pdata) {
++		dev_err(&pdev->dev, "No platform data for %s.\n", pdev->name);
++		return -ENODEV;
++	}
++
++	res = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
++	if (!res) {
++		dev_err(&pdev->dev,
++			"Found HC with no IRQ. Check %s setup!\n", pdev->name);
++		return -ENODEV;
++	}
++	irq = res->start;
++
++	hcd = usb_create_hcd(driver, &pdev->dev, pdev->name);
++	if (!hcd) {
++		retval = -ENOMEM;
++		goto err1;
++	}
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (!res) {
++		dev_err(&pdev->dev,
++			"Found HC with no register addr. Check %s setup!\n",
++			pdev->name);
++		retval = -ENODEV;
++		goto err2;
++	}
++	hcd->rsrc_start = res->start;
++	hcd->rsrc_len = res->end - res->start + 1;
++	if (!request_mem_region(hcd->rsrc_start, hcd->rsrc_len,
++				driver->description)) {
++		dev_dbg(&pdev->dev, "controller already in use\n");
++		retval = -EBUSY;
++		goto err2;
++	}
++
++	hcd->regs = ioremap(hcd->rsrc_start, hcd->rsrc_len);
++	if (hcd->regs == NULL) {
++		dev_dbg(&pdev->dev, "error mapping memory\n");
++		retval = -EFAULT;
++		goto err3;
++	}
++
++	retval = usb_add_hcd(hcd, irq, IRQF_SHARED);
++	if (retval != 0)
++		goto err4;
++	return retval;
++
++err4:
++	iounmap(hcd->regs);
++err3:
++	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
++err2:
++	usb_put_hcd(hcd);
++err1:
++	dev_err(&pdev->dev, "init %s fail, %d\n", pdev->name, retval);
++	return retval;
++}
++
++void usb_hcd_ls2h_remove(struct usb_hcd *hcd, struct platform_device *pdev)
++{
++	usb_remove_hcd(hcd);
++	iounmap(hcd->regs);
++	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
++	usb_put_hcd(hcd);
++}
++
++/* called after powerup, by probe or system-pm "wakeup" */
++static int ehci_ls2h_reinit(struct ehci_hcd *ehci)
++{
++	return 0;
++}
++
++/* called during probe() after chip reset completes */
++static int ehci_ls2h_setup(struct usb_hcd *hcd)
++{
++	struct ehci_hcd *ehci = hcd_to_ehci(hcd);
++	int retval;
++
++	/* EHCI registers start at offset 0 */
++	ehci->caps = hcd->regs + 0x0;
++	ehci->regs = hcd->regs + 0x0 +
++	    HC_LENGTH(ehci,ehci_readl(ehci, &ehci->caps->hc_capbase));
++	dbg_hcs_params(ehci, "reset");
++	dbg_hcc_params(ehci, "reset");
++
++	/* cache this readonly data; minimize chip reads */
++	ehci->hcs_params = ehci_readl(ehci, &ehci->caps->hcs_params);
++
++	retval = ehci_halt(ehci);
++	if (retval)
++		return retval;
++
++	/* data structure init */
++	retval = ehci_init(hcd);
++	if (retval)
++		return retval;
++
++	ehci->sbrn = 0x20;
++
++	ehci_reset(ehci);
++
++	retval = ehci_ls2h_reinit(ehci);
++	return retval;
++}
++
++static const struct hc_driver ehci_ls2h_hc_driver = {
++	.description = hcd_name,
++	.product_desc = "loongson2h EHCI Host Controller",
++	.hcd_priv_size = sizeof(struct ehci_hcd),
++
++	/*
++	 * generic hardware linkage
++	 */
++	.irq = ehci_irq,
++	.flags = HCD_USB2,
++
++	/*
++	 * basic lifecycle operations
++	 */
++	.reset = ehci_ls2h_setup,
++	.start = ehci_run,
++#ifdef	CONFIG_PM
++	.suspend = ehci_bus_suspend,
++	.resume = ehci_bus_resume,
++#endif
++	.stop = ehci_stop,
++	.shutdown = ehci_shutdown,
++
++	/*
++	 * managing i/o requests and associated device resources
++	 */
++	.urb_enqueue = ehci_urb_enqueue,
++	.urb_dequeue = ehci_urb_dequeue,
++	.endpoint_disable = ehci_endpoint_disable,
++
++	/*
++	 * scheduling support
++	 */
++	.get_frame_number = ehci_get_frame,
++
++	/*
++	 * root hub support
++	 */
++	.hub_status_data = ehci_hub_status_data,
++	.hub_control = ehci_hub_control,
++	.bus_suspend = ehci_bus_suspend,
++	.bus_resume = ehci_bus_resume,
++};
++
++static int ehci_ls2h_drv_probe(struct platform_device *pdev)
++{
++	if (usb_disabled())
++		return -ENODEV;
++
++	return usb_hcd_ls2h_probe(&ehci_ls2h_hc_driver, pdev);
++}
++
++static int ehci_ls2h_drv_remove(struct platform_device *pdev)
++{
++	struct usb_hcd *hcd = platform_get_drvdata(pdev);
++
++	usb_hcd_ls2h_remove(hcd, pdev);
++
++	return 0;
++}
++
++MODULE_ALIAS("ls2h-ehci");
++
++static struct platform_driver ehci_ls2h_driver = {
++	.probe = ehci_ls2h_drv_probe,
++	.remove = ehci_ls2h_drv_remove,
++	.shutdown = usb_hcd_platform_shutdown,
++	.driver = {
++		   .name = "ls2h-ehci",
++		   },
++};
+diff --git a/drivers/usb/host/ohci-hcd.c b/drivers/usb/host/ohci-hcd.c
+index 760cb57e..b8a51047 100644
+--- a/drivers/usb/host/ohci-hcd.c
++++ b/drivers/usb/host/ohci-hcd.c
+@@ -1255,6 +1255,11 @@ MODULE_LICENSE ("GPL");
+ #define PLATFORM_DRIVER		ohci_hcd_tilegx_driver
+ #endif
+
++#ifdef CONFIG_USB_LS2H_OHCI
++#include "ohci-ls2h.c"
++#define LS2H_OHCI_DRIVER         ohci_hcd_ls2h_driver
++#endif
++
+ static int __init ohci_hcd_mod_init(void)
+ {
+ 	int retval = 0;
+@@ -1315,9 +1320,19 @@ static int __init ohci_hcd_mod_init(void)
+ 		goto error_davinci;
+ #endif
+
++#ifdef LS2H_OHCI_DRIVER
++	retval = platform_driver_register(&LS2H_OHCI_DRIVER);
++	if (retval < 0)
++		goto error_ls2h;
++#endif
++
+ 	return retval;
+
+ 	/* Error path */
++#ifdef LS2H_OHCI_DRIVER
++	platform_driver_unregister(&LS2H_OHCI_DRIVER);
++ error_ls2h:
++#endif
+ #ifdef DAVINCI_PLATFORM_DRIVER
+ 	platform_driver_unregister(&DAVINCI_PLATFORM_DRIVER);
+  error_davinci:
+@@ -1357,6 +1372,9 @@ module_init(ohci_hcd_mod_init);
+
+ static void __exit ohci_hcd_mod_exit(void)
+ {
++#ifdef LS2H_OHCI_DRIVER
++	platform_driver_unregister(&LS2H_OHCI_DRIVER);
++#endif
+ #ifdef DAVINCI_PLATFORM_DRIVER
+ 	platform_driver_unregister(&DAVINCI_PLATFORM_DRIVER);
+ #endif
+diff --git a/drivers/usb/host/ohci-ls2h.c b/drivers/usb/host/ohci-ls2h.c
+new file mode 100644
+index 00000000..f0b7f15c
+--- /dev/null
++++ b/drivers/usb/host/ohci-ls2h.c
+@@ -0,0 +1,229 @@
++/*
++ *  Copyright (C) 2013, Loongson Technology Corporation Limited, Inc.
++ *
++ *  This program is free software; you can distribute it and/or modify it
++ *  under the terms of the GNU General Public License (Version 2) as
++ *  published by the Free Software Foundation.
++ *
++ *  This program is distributed in the hope it will be useful, but WITHOUT
++ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ *  for more details.
++ *
++ */
++
++#include <linux/platform_device.h>
++
++static void ls2h_start_hc(struct platform_device *pdev)
++{
++	struct usb_hcd *hcd = platform_get_drvdata(pdev);
++	struct ohci_regs __iomem *regs = hcd->regs;
++
++	dev_dbg(&pdev->dev, "start\n");
++
++	/*
++	 * The USB host controller must remain in reset.
++	 */
++	writel(0, &regs->control);
++}
++
++static void ls2h_stop_hc(struct platform_device *pdev)
++{
++	struct usb_hcd *hcd = platform_get_drvdata(pdev);
++	struct ohci_regs __iomem *regs = hcd->regs;
++
++	dev_dbg(&pdev->dev, "stop\n");
++
++	/*
++	 * Put the USB host controller into reset.
++	 */
++	writel(0, &regs->control);
++
++}
++
++static int usb_hcd_ls2h_probe(const struct hc_driver *driver,
++			      struct platform_device *pdev)
++{
++	int retval;
++	struct usb_hcd *hcd = NULL;
++
++	if (pdev->num_resources != 2) {
++		pr_debug("hcd probe: invalid num_resources");
++		return -ENODEV;
++	}
++
++	if ((pdev->resource[0].flags != IORESOURCE_MEM)
++	    || (pdev->resource[1].flags != IORESOURCE_IRQ)) {
++		pr_debug("hcd probe: invalid resource type\n");
++		return -ENODEV;
++	}
++
++	hcd = usb_create_hcd(driver, &pdev->dev, "ls2h");
++	if (!hcd)
++		return -ENOMEM;
++	hcd->rsrc_start = pdev->resource[0].start;
++	hcd->rsrc_len = pdev->resource[0].end - pdev->resource[0].start + 1;
++
++	if (!request_mem_region(hcd->rsrc_start, hcd->rsrc_len, hcd_name)) {
++		dev_err(&pdev->dev, "request_mem_region failed\n");
++		retval = -EBUSY;
++		goto err1;
++	}
++	hcd->regs = ioremap(hcd->rsrc_start, hcd->rsrc_len);
++	if (!hcd->regs) {
++		pr_debug("ioremap failed\n");
++		retval = -EIO;
++		goto err2;
++	}
++
++	ls2h_start_hc(pdev);
++	ohci_hcd_init(hcd_to_ohci(hcd));
++
++	retval = usb_add_hcd(hcd, pdev->resource[1].start, 0);
++	if (retval == 0)
++		return retval;
++
++	/* Error handling */
++	ls2h_stop_hc(pdev);
++
++	iounmap(hcd->regs);
++
++err2:
++	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
++
++err1:
++	usb_put_hcd(hcd);
++	return retval;
++}
++
++static int usb_hcd_ls2h_remove(struct usb_hcd *hcd,
++			       struct platform_device *pdev)
++{
++	usb_remove_hcd(hcd);
++	ls2h_stop_hc(pdev);
++	iounmap(hcd->regs);
++	release_mem_region(hcd->rsrc_start, hcd->rsrc_len);
++
++	dev_set_drvdata(&pdev->dev, NULL);
++
++	return 0;
++}
++
++struct ls2h_usbh_data {
++	u8 ports;		/* number of ports on root hub */
++	u8 vbus_pin[];		/* port power-control pin */
++};
++
++static int ohci_ls2h_start(struct usb_hcd *hcd)
++{
++	struct ls2h_usbh_data *board = hcd->self.controller->platform_data;
++	struct ohci_hcd *ohci = hcd_to_ohci(hcd);
++	int ret;
++
++	if ((ret = ohci_init(ohci)) < 0)
++		return ret;
++
++	ohci->num_ports = board->ports;
++
++	if ((ret = ohci_run(ohci)) < 0) {
++		ohci_err("can't start %s", hcd->self.bus_name);
++		ohci_stop(hcd);
++		return ret;
++	}
++	return 0;
++}
++
++static const struct hc_driver ohci_ls2h_hc_driver = {
++	.description = hcd_name,
++	.product_desc = "Loongson2H OHCI",
++	.hcd_priv_size = sizeof(struct ohci_hcd),
++
++	/*
++	 * generic hardware linkage
++	 */
++	.irq = ohci_irq,
++	.flags = HCD_USB11 | HCD_MEMORY,
++
++	/*
++	 * basic lifecycle operations
++	 */
++	.start = ohci_ls2h_start,
++	.stop = ohci_stop,
++	.shutdown = ohci_shutdown,
++
++	/*
++	 * managing i/o requests and associated device resources
++	 */
++	.urb_enqueue = ohci_urb_enqueue,
++	.urb_dequeue = ohci_urb_dequeue,
++	.endpoint_disable = ohci_endpoint_disable,
++
++	/*
++	 * scheduling support
++	 */
++	.get_frame_number = ohci_get_frame,
++
++	/*
++	 * root hub support
++	 */
++	.hub_status_data = ohci_hub_status_data,
++	.hub_control = ohci_hub_control,
++#ifdef CONFIG_PM
++	.bus_suspend = ohci_bus_suspend,
++	.bus_resume = ohci_bus_resume,
++#endif
++	.start_port_reset = ohci_start_port_reset,
++};
++
++static int ohci_hcd_ls2h_drv_probe(struct platform_device *pdev)
++{
++	device_init_wakeup(&pdev->dev, 1);
++	return usb_hcd_ls2h_probe(&ohci_ls2h_hc_driver, pdev);
++}
++
++static int ohci_hcd_ls2h_drv_remove(struct platform_device *pdev)
++{
++	device_init_wakeup(&pdev->dev, 0);
++	return usb_hcd_ls2h_remove(platform_get_drvdata(pdev), pdev);
++}
++
++#ifdef CONFIG_PM
++
++static int
++ohci_hcd_ls2h_drv_suspend(struct platform_device *pdev, pm_message_t mesg)
++{
++	struct usb_hcd *hcd = platform_get_drvdata(pdev);
++
++	if (device_may_wakeup(&pdev->dev))
++		enable_irq_wake(hcd->irq);
++
++	return 0;
++}
++
++static int ohci_hcd_ls2h_drv_resume(struct platform_device *pdev)
++{
++	struct usb_hcd *hcd = platform_get_drvdata(pdev);
++
++	if (device_may_wakeup(&pdev->dev))
++		disable_irq_wake(hcd->irq);
++
++	return 0;
++}
++#else
++#define ohci_hcd_ls2h_drv_suspend NULL
++#define ohci_hcd_ls2h_drv_resume  NULL
++#endif
++
++MODULE_ALIAS("ls2h_ohci");
++
++static struct platform_driver ohci_hcd_ls2h_driver = {
++	.driver = {
++			.name	= "ls2h-ohci",
++			.owner	= THIS_MODULE,
++		   },
++	.probe	= ohci_hcd_ls2h_drv_probe,
++	.remove = ohci_hcd_ls2h_drv_remove,
++	.resume	= ohci_hcd_ls2h_drv_resume,
++	.shutdown	= usb_hcd_platform_shutdown,
++	.suspend	= ohci_hcd_ls2h_drv_suspend,
++};
+--
+2.11.0

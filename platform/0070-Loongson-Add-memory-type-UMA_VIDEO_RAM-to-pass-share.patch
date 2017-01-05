@@ -1,0 +1,99 @@
+From b6eaf3c26bbb2d44852e27f264b19d6e5e26ab44 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Fri, 6 Feb 2015 17:10:26 +0800
+Subject: [PATCH 070/130] Loongson: Add memory type UMA_VIDEO_RAM to pass
+ shared VRAM info
+
+Change-Id: Iaa66296ad5a558dbc837c18d79e51255c7db31fc
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/include/asm/mach-loongson64/boot_param.h | 9 ++++++++-
+ arch/mips/loongson64/common/mem.c                  | 8 ++++++++
+ arch/mips/loongson64/loongson-3/ls2h-platform.c    | 4 ++++
+ arch/mips/loongson64/loongson-3/numa.c             | 8 ++++++++
+ 4 files changed, 28 insertions(+), 1 deletion(-)
+
+diff --git a/arch/mips/include/asm/mach-loongson64/boot_param.h b/arch/mips/include/asm/mach-loongson64/boot_param.h
+index 8ced0449..50f4cb9c 100644
+--- a/arch/mips/include/asm/mach-loongson64/boot_param.h
++++ b/arch/mips/include/asm/mach-loongson64/boot_param.h
+@@ -11,7 +11,11 @@
+ #define ADAPTER_ROM		8
+ #define ACPI_TABLE		9
+ #define SMBIOS_TABLE		10
+-#define MAX_MEMORY_TYPE		11
++#define UMA_VIDEO_RAM		11
++#define MAX_MEMORY_TYPE		12
++
++#define VRAM_TYPE_SP	0
++#define VRAM_TYPE_UMA	1
+ 
+ #define LOONGSON3_BOOT_MEM_MAP_MAX 128
+ struct efi_memory_map_loongson {
+@@ -208,6 +212,9 @@ struct loongson_system_configuration {
+ 	u64 low_physmem_start;
+ 	u64 high_physmem_start;
+ 	u32 dma_mask_bits;
++	u32 vram_type;
++	u64 uma_vram_addr;
++	u64 uma_vram_size;
+ 	u32 ec_sci_irq;
+ 	char ecname[32];
+ 	u32 nr_uarts;
+diff --git a/arch/mips/loongson64/common/mem.c b/arch/mips/loongson64/common/mem.c
+index 7b53db10..4022a35c 100644
+--- a/arch/mips/loongson64/common/mem.c
++++ b/arch/mips/loongson64/common/mem.c
+@@ -97,6 +97,14 @@ void __init prom_init_memory(void)
+ 				add_memory_region(loongson_memmap->map[i].mem_start,
+ 					0x2000, BOOT_MEM_RESERVED);
+ 				break;
++			case UMA_VIDEO_RAM:
++				loongson_sysconf.vram_type = VRAM_TYPE_UMA;
++				loongson_sysconf.uma_vram_addr = loongson_memmap->map[i].mem_start & 0xffffffff;
++				loongson_sysconf.uma_vram_size = loongson_memmap->map[i].mem_size;
++				add_memory_region(loongson_memmap->map[i].mem_start,
++					(u64)loongson_memmap->map[i].mem_size << 20,
++					BOOT_MEM_RESERVED);
++				break;
+ 			}
+ 		}
+ 	}
+diff --git a/arch/mips/loongson64/loongson-3/ls2h-platform.c b/arch/mips/loongson64/loongson-3/ls2h-platform.c
+index c83c447b..aef11d11 100644
+--- a/arch/mips/loongson64/loongson-3/ls2h-platform.c
++++ b/arch/mips/loongson64/loongson-3/ls2h-platform.c
+@@ -734,6 +734,10 @@ static void __init ls2h_device_initcall(void)
+ 		ls2h_platform_devices[i]->dev.coherent_dma_mask = platform_dma_mask;
+ 	}
+ 
++	if (loongson_sysconf.vram_type == VRAM_TYPE_UMA) {
++		ls2h_gpu_resources[2].start = loongson_sysconf.uma_vram_addr;
++		ls2h_gpu_resources[2].end = loongson_sysconf.uma_vram_addr + (loongson_sysconf.uma_vram_size << 20) - 1;
++	}
+ 	platform_add_devices(ls2h_platform_devices,
+ 			ARRAY_SIZE(ls2h_platform_devices));
+ }
+diff --git a/arch/mips/loongson64/loongson-3/numa.c b/arch/mips/loongson64/loongson-3/numa.c
+index 8cb7a2ac..e12d162a 100644
+--- a/arch/mips/loongson64/loongson-3/numa.c
++++ b/arch/mips/loongson64/loongson-3/numa.c
+@@ -190,6 +190,14 @@ static void __init szmem(unsigned int node)
+ 				0x2000, BOOT_MEM_RESERVED);
+ 			memblock_reserve(((node_id << 44) + mem_start), 0x2000);
+ 			break;
++		case UMA_VIDEO_RAM:
++			loongson_sysconf.vram_type = VRAM_TYPE_UMA;
++			loongson_sysconf.uma_vram_addr = mem_start & 0xffffffff;
++			loongson_sysconf.uma_vram_size = mem_size;
++			add_memory_region((node_id << 44) + mem_start,
++				(u64)mem_size << 20, BOOT_MEM_RESERVED);
++			memblock_reserve(((node_id << 44) + mem_start), mem_size << 20);
++			break;
+ 		}
+ 	}
+ }
+-- 
+2.11.0
+

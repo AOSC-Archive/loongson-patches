@@ -1,0 +1,6081 @@
+From 3b4b82db0845680cbf165a683b5f2907dcd8e71b Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Mon, 17 Mar 2014 19:29:38 +0800
+Subject: [PATCH 069/130] Loongson: Add basic support for LS2H bridge
+
+arch/mips/loongson64/common/dma-swiotlb.c Hunk #4 #5 modified by Junde Yhi.
+arch/mips/loongson64/loongson-3/hpet.c Hunk #2 modified by Junde Yhi.
+arch/mips/pci/pci.c -> arch/mips/pci/pci-legacy.c and modified by Junde Yhi.
+drivers/mtd/nand/Kconfig modified by Junde Yhi.
+drivers/net/ethernet/stmicro/stmmac/stmmac_main.c Hunk #2 #3 #5 modified by Junde Yhi.
+drivers/rtc/Kconfig modified by Junde Yhi.
+drivers/usb/dwc2/platform.c modified by Junde Yhi.
+drivers/video/fbdev/Kconfig modified by Junde Yhi.
+include/linux/dma-attrs.h removed by Junde Yhi.
+lib/swiotlb.c modified by Junde Yhi.
+
+Change-Id: I1a7508240289f5097ef3d558b64ca9e367905264
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/include/asm/device.h                     |    3 +
+ arch/mips/include/asm/mach-loongson64/boot_param.h |    3 +
+ arch/mips/include/asm/mach-loongson64/irq.h        |  100 +-
+ .../include/asm/mach-loongson64/loongson-pch.h     |  328 ++++++
+ .../mips/include/asm/mach-loongson64/workarounds.h |    1 +
+ arch/mips/loongson64/common/dma-swiotlb.c          |  102 +-
+ arch/mips/loongson64/common/env.c                  |   16 +
+ arch/mips/loongson64/common/init.c                 |    4 +
+ arch/mips/loongson64/common/mem.c                  |    4 +
+ arch/mips/loongson64/common/pci.c                  |    4 +
+ arch/mips/loongson64/common/rtc.c                  |    5 +
+ arch/mips/loongson64/loongson-3/Makefile           |    3 +-
+ arch/mips/loongson64/loongson-3/hpet.c             |    9 +
+ arch/mips/loongson64/loongson-3/irq.c              |   78 +-
+ arch/mips/loongson64/loongson-3/ls2h-irq.c         |  235 ++++
+ arch/mips/loongson64/loongson-3/ls2h-platform.c    |  750 +++++++++++++
+ arch/mips/loongson64/loongson-3/numa.c             |    6 +
+ arch/mips/loongson64/loongson-3/platform.c         |   15 +
+ arch/mips/loongson64/loongson-3/pm.c               |   18 +-
+ arch/mips/loongson64/loongson-3/rs780-irq.c        |   78 ++
+ arch/mips/loongson64/loongson-3/rs780-platform.c   |   46 +
+ arch/mips/loongson64/loongson-3/sleep.S            |    7 +-
+ arch/mips/pci/Makefile                             |    2 +-
+ arch/mips/pci/fixup-loongson3.c                    |   19 +-
+ arch/mips/pci/ops-loongson3-ls2h.c                 |  237 ++++
+ .../pci/{ops-loongson3.c => ops-loongson3-rs780.c} |   16 +-
+ arch/mips/pci/pci.c                                |    4 +
+ drivers/cpufreq/loongson3_cpufreq.c                |    4 +
+ drivers/i2c/busses/Kconfig                         |    7 +
+ drivers/i2c/busses/Makefile                        |    1 +
+ drivers/i2c/busses/i2c-ls2h.c                      |  348 ++++++
+ drivers/mtd/nand/Kconfig                           |    6 +
+ drivers/mtd/nand/Makefile                          |    1 +
+ drivers/mtd/nand/ls2h_nand.c                       |  963 +++++++++++++++++
+ .../net/ethernet/stmicro/stmmac/stmmac_ethtool.c   |    8 -
+ drivers/net/ethernet/stmicro/stmmac/stmmac_main.c  |  145 ++-
+ drivers/platform/mips/lemote3a-laptop.c            |   35 +-
+ drivers/rtc/Kconfig                                |    7 +
+ drivers/rtc/Makefile                               |    1 +
+ drivers/rtc/rtc-ls2h.c                             |  220 ++++
+ drivers/usb/core/hub.c                             |   39 +-
+ drivers/usb/core/hub.h                             |    3 -
+ drivers/usb/dwc2/core.c                            |    2 +-
+ drivers/usb/dwc2/platform.c                        |    3 +
+ drivers/video/fbdev/Kconfig                        |    9 +
+ drivers/video/fbdev/Makefile                       |    1 +
+ drivers/video/fbdev/ls2hfb.c                       | 1126 ++++++++++++++++++++
+ include/linux/dma-attrs.h                          |    1 +
+ lib/swiotlb.c                                      |    7 +-
+ 49 files changed, 4859 insertions(+), 171 deletions(-)
+ create mode 100644 arch/mips/include/asm/mach-loongson64/loongson-pch.h
+ create mode 100644 arch/mips/loongson64/loongson-3/ls2h-irq.c
+ create mode 100644 arch/mips/loongson64/loongson-3/ls2h-platform.c
+ create mode 100644 arch/mips/loongson64/loongson-3/rs780-irq.c
+ create mode 100644 arch/mips/loongson64/loongson-3/rs780-platform.c
+ create mode 100644 arch/mips/pci/ops-loongson3-ls2h.c
+ rename arch/mips/pci/{ops-loongson3.c => ops-loongson3-rs780.c} (79%)
+ create mode 100644 drivers/i2c/busses/i2c-ls2h.c
+ create mode 100644 drivers/mtd/nand/ls2h_nand.c
+ create mode 100644 drivers/rtc/rtc-ls2h.c
+ create mode 100644 drivers/video/fbdev/ls2hfb.c
+
+diff --git a/arch/mips/include/asm/device.h b/arch/mips/include/asm/device.h
+index c94fafba..33d3050e 100644
+--- a/arch/mips/include/asm/device.h
++++ b/arch/mips/include/asm/device.h
+@@ -6,9 +6,12 @@
+ #ifndef _ASM_MIPS_DEVICE_H
+ #define _ASM_MIPS_DEVICE_H
+
++#include <linux/dma-attrs.h>
++
+ struct dma_map_ops;
+
+ struct dev_archdata {
++	struct dma_attrs dma_attrs;
+ 	/* DMA operations on that device */
+ 	struct dma_map_ops *dma_ops;
+
+diff --git a/arch/mips/include/asm/mach-loongson64/boot_param.h b/arch/mips/include/asm/mach-loongson64/boot_param.h
+index 9f9bb9c5..8ced0449 100644
+--- a/arch/mips/include/asm/mach-loongson64/boot_param.h
++++ b/arch/mips/include/asm/mach-loongson64/boot_param.h
+@@ -205,7 +205,10 @@ struct loongson_system_configuration {
+ 	u64 poweroff_addr;
+ 	u64 suspend_addr;
+ 	u64 vgabios_addr;
++	u64 low_physmem_start;
++	u64 high_physmem_start;
+ 	u32 dma_mask_bits;
++	u32 ec_sci_irq;
+ 	char ecname[32];
+ 	u32 nr_uarts;
+ 	struct uart_device uarts[MAX_UARTS];
+diff --git a/arch/mips/include/asm/mach-loongson64/irq.h b/arch/mips/include/asm/mach-loongson64/irq.h
+index d18c45c7..ed2af8c4 100644
+--- a/arch/mips/include/asm/mach-loongson64/irq.h
++++ b/arch/mips/include/asm/mach-loongson64/irq.h
+@@ -5,11 +5,12 @@
+
+ #ifdef CONFIG_CPU_LOONGSON3
+
++#define NR_IRQS	256
+ /* cpu core interrupt numbers */
+ #define MIPS_CPU_IRQ_BASE 56
+
+ #define LOONGSON_UART_IRQ   (MIPS_CPU_IRQ_BASE + 2) /* UART */
+-#define LOONGSON_HT1_IRQ    (MIPS_CPU_IRQ_BASE + 3) /* HT1 */
++#define LOONGSON_BRIDGE_IRQ (MIPS_CPU_IRQ_BASE + 3) /* CASCADE */
+ #define LOONGSON_TIMER_IRQ  (MIPS_CPU_IRQ_BASE + 7) /* CPU Timer */
+
+ #define LOONGSON_HT1_CFG_BASE		loongson_sysconf.ht_control_base
+@@ -34,6 +35,103 @@
+
+ #define LOONGSON_INT_COREx_INTy(x, y)	(1<<(x) | 1<<(y+4))	/* route to int y of core x */
+
++#define LS2H_PCH_IRQ_BASE		64
++
++/* group 0 */
++#define LS2H_PCH_ACPI_IRQ		(0 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HPET_IRQ		(1 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_UART0_IRQ		(2 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_UART1_IRQ		(3 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_UART2_IRQ		(4 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_UART3_IRQ		(5 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_SPI_IRQ		(6 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_I2C0_IRQ		(7 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_I2C1_IRQ		(8 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_AC97_IRQ		(9 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_DMA0_IRQ		(10 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_DMA1_IRQ		(11 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_DMA2_IRQ		(12 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_LPC_IRQ		(13 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_RTC_INT0_IRQ		(14 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_RTC_INT1_IRQ		(15 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_RTC_INT2_IRQ		(16 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_TOY_INT0_IRQ		(17 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_TOY_INT1_IRQ		(18 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_TOY_INT2_IRQ		(19 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_RTC_TICK_IRQ		(20 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_TOY_TICK_IRQ		(21 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_NAND_IRQ		(22 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_SYS_INTN_IRQ		(23 + LS2H_PCH_IRQ_BASE)
++
++/* group 1 */
++#define LS2H_PCH_EHCI_IRQ		(32 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_OHCI_IRQ		(33 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_OTG_IRQ		(34 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GMAC0_IRQ		(35 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GMAC1_IRQ		(36 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_SATA_IRQ		(37 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPU_IRQ		(38 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_DC_IRQ			(39 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_PWM0_IRQ		(40 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_PWM1_IRQ		(41 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_PWM2_IRQ		(42 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_PWM3_IRQ		(43 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HT0_IRQ		(44 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HT1_IRQ		(45 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HT2_IRQ		(46 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HT3_IRQ		(47 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HT4_IRQ		(48 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HT5_IRQ		(49 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HT6_IRQ		(50 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HT7_IRQ		(51 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_PCIE_PORT0_IRQ		(52 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_PCIE_PORT1_IRQ		(53 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_PCIE_PORT2_IRQ		(54 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_PCIE_PORT3_IRQ		(55 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_SATA_PHY_IRQ		(56 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_HDA_IRQ		(57 + LS2H_PCH_IRQ_BASE)
++
++#define LS2H_PCIE_PORT0_INTA_BIT	(1 << 20)
++#define LS2H_PCIE_PORT1_INTA_BIT	(1 << 21)
++#define LS2H_PCIE_PORT2_INTA_BIT	(1 << 22)
++#define LS2H_PCIE_PORT3_INTA_BIT	(1 << 23)
++
++/* group 2 */
++#define LS2H_PCH_GPIO0_IRQ		(64 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO1_IRQ		(65 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO2_IRQ		(66 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO3_IRQ		(67 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO4_IRQ		(68 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO5_IRQ		(69 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO6_IRQ		(70 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO7_IRQ		(71 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO8_IRQ		(72 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO9_IRQ		(73 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO10_IRQ		(74 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO11_IRQ		(75 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO12_IRQ		(76 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO13_IRQ		(77 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO14_IRQ		(78 + LS2H_PCH_IRQ_BASE)
++#define LS2H_PCH_GPIO15_IRQ		(79 + LS2H_PCH_IRQ_BASE)
++
++#define LS2H_PCH_GPIO_IRQ		LS2H_PCH_GPIO0_IRQ
++#define LS2H_PCH_GPIO_FIRST_IRQ		LS2H_PCH_GPIO0_IRQ
++#define LS2H_PCH_GPIO_IRQ_COUNT		96
++#define LS2H_PCH_GPIO_LAST_IRQ		(LS2H_PCH_GPIO_FIRST_IRQ + LS2H_PCH_GPIO_IRQ_COUNT - 1)
++
++#define LS2H_PCH_LAST_IRQ		(160 + LS2H_PCH_IRQ_BASE)
++
++#define LS2H_PCH_KBD_IRQ		1
++#define LS2H_PCH_AUX_IRQ		12
++
++struct ls2h_intctl_regs {
++	volatile u32 int_isr;
++	volatile u32 int_en;
++	volatile u32 int_set;
++	volatile u32 int_clr;
++	volatile u32 int_pol;
++	volatile u32 int_edge;
++};
+ #endif
+
+ extern void fixup_irqs(void);
+diff --git a/arch/mips/include/asm/mach-loongson64/loongson-pch.h b/arch/mips/include/asm/mach-loongson64/loongson-pch.h
+new file mode 100644
+index 00000000..9a904561
+--- /dev/null
++++ b/arch/mips/include/asm/mach-loongson64/loongson-pch.h
+@@ -0,0 +1,328 @@
++/*
++ *  Copyright (C) 2013, Loongson Technology Corporation Limited, Inc.
++ *
++ *  This program is free software; you can distribute it and/or modify it
++ *  under the terms of the GNU General Public License (Version 2) as
++ *  published by the Free Software Foundation.
++ *
++ *  This program is distributed in the hope it will be useful, but WITHOUT
++ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ *  for more details.
++ *
++ */
++#ifndef _LOONGSON_PCH_H
++#define _LOONGSON_PCH_H
++
++#include <linux/types.h>
++#include <linux/pci.h>
++#include <asm/addrspace.h>
++
++#define LS2H_PCH_REG_BASE		0x1b000000
++
++/* CHIP CONFIG regs */
++#define LS2H_CHIPCFG_REG_BASE		(LS2H_PCH_REG_BASE + 0x00d00000)
++
++#define LS2H_INT_REG_BASE		(LS2H_CHIPCFG_REG_BASE + 0x0040)
++
++#define LS2H_INT_ISR0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0040)
++#define LS2H_INT_IEN0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0044)
++#define LS2H_INT_SET0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0048)
++#define LS2H_INT_CLR0_REG		(LS2H_CHIPCFG_REG_BASE + 0x004c)
++#define LS2H_INT_POL0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0050)
++#define LS2H_INT_EDGE0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0054)
++
++#define LS2H_GPIO_CFG_REG		(LS2H_CHIPCFG_REG_BASE + 0x00c0)
++#define LS2H_GPIO_OE_REG		(LS2H_CHIPCFG_REG_BASE + 0x00c4)
++#define LS2H_GPIO_IN_REG		(LS2H_CHIPCFG_REG_BASE + 0x00c8)
++#define LS2H_GPIO_OUT_REG		(LS2H_CHIPCFG_REG_BASE + 0x00cc)
++
++#define LS2H_DMA_ORDER_REG		(LS2H_CHIPCFG_REG_BASE + 0x0100)
++#define LS2H_CHIP_CFG0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0200)
++#define LS2H_CHIP_CFG1_REG		(LS2H_CHIPCFG_REG_BASE + 0x0204)
++#define LS2H_CHIP_CFG2_REG		(LS2H_CHIPCFG_REG_BASE + 0x0208)
++#define LS2H_CHIP_CFG3_REG		(LS2H_CHIPCFG_REG_BASE + 0x020c)
++#define LS2H_CHIP_SAMP0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0210)
++#define LS2H_CHIP_SAMP1_REG		(LS2H_CHIPCFG_REG_BASE + 0x0214)
++#define LS2H_CHIP_SAMP2_REG		(LS2H_CHIPCFG_REG_BASE + 0x0218)
++#define LS2H_CHIP_SAMP3_REG		(LS2H_CHIPCFG_REG_BASE + 0x021c)
++#define LS2H_CLK_CTRL0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0220)
++#define LS2H_CLK_CTRL1_REG		(LS2H_CHIPCFG_REG_BASE + 0x0224)
++#define LS2H_CLK_CTRL2_REG		(LS2H_CHIPCFG_REG_BASE + 0x0228)
++#define LS2H_CLK_CTRL3_REG		(LS2H_CHIPCFG_REG_BASE + 0x022c)
++#define LS2H_PIXCLK0_CTRL0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0230)
++#define LS2H_PIXCLK0_CTRL1_REG		(LS2H_CHIPCFG_REG_BASE + 0x0234)
++#define LS2H_PIXCLK1_CTRL0_REG		(LS2H_CHIPCFG_REG_BASE + 0x0238)
++#define LS2H_PIXCLK1_CTRL1_REG		(LS2H_CHIPCFG_REG_BASE + 0x023c)
++
++#define LS2H_WIN_CFG_BASE		(LS2H_CHIPCFG_REG_BASE + 0x80000)
++#define LS2H_M1_WIN4_BASE_REG		(LS2H_WIN_CFG_BASE + 0x0120)
++#define LS2H_M1_WIN4_MASK_REG		(LS2H_WIN_CFG_BASE + 0x0160)
++#define LS2H_M1_WIN4_MMAP_REG		(LS2H_WIN_CFG_BASE + 0x01a0)
++#define LS2H_M1_WIN6_BASE_REG		(LS2H_WIN_CFG_BASE + 0x0130)
++#define LS2H_M1_WIN6_MASK_REG		(LS2H_WIN_CFG_BASE + 0x0170)
++#define LS2H_M1_WIN6_MMAP_REG		(LS2H_WIN_CFG_BASE + 0x01b0)
++#define LS2H_M4_WIN0_BASE_REG		(LS2H_WIN_CFG_BASE + 0x0400)
++#define LS2H_M4_WIN0_MASK_REG		(LS2H_WIN_CFG_BASE + 0x0440)
++#define LS2H_M4_WIN0_MMAP_REG		(LS2H_WIN_CFG_BASE + 0x0480)
++
++/* USB regs */
++#define LS2H_EHCI_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e00000)
++#define LS2H_OHCI_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e08000)
++
++/* GMAC regs */
++#define LS2H_GMAC0_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e10000)
++#define LS2H_GMAC1_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e18000)
++
++/* HDA regs */
++#define LS2H_HDA_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e20000)
++
++/* SATAregs */
++#define LS2H_SATA_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e30000)
++
++/* GPU regs */
++#define LS2H_GPU_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e40000)
++
++/* DC regs */
++#define LS2H_DC_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e50000)
++
++#define LS2H_FB_CFG_DVO_REG		(LS2H_DC_REG_BASE + 0x1240)
++#define LS2H_FB_CFG_VGA_REG		(LS2H_DC_REG_BASE + 0x1250)
++#define LS2H_FB_ADDR0_DVO_REG		(LS2H_DC_REG_BASE + 0x1260)
++#define LS2H_FB_ADDR0_VGA_REG		(LS2H_DC_REG_BASE + 0x1270)
++#define LS2H_FB_STRI_DVO_REG		(LS2H_DC_REG_BASE + 0x1280)
++#define LS2H_FB_STRI_VGA_REG		(LS2H_DC_REG_BASE + 0x1290)
++
++#define LS2H_FB_DITCFG_DVO_REG		(LS2H_DC_REG_BASE + 0x1360)
++#define LS2H_FB_DITCFG_VGA_REG		(LS2H_DC_REG_BASE + 0x1370)
++#define LS2H_FB_DITTAB_LO_DVO_REG	(LS2H_DC_REG_BASE + 0x1380)
++#define LS2H_FB_DITTAB_LO_VGA_REG	(LS2H_DC_REG_BASE + 0x1390)
++#define LS2H_FB_DITTAB_HI_DVO_REG	(LS2H_DC_REG_BASE + 0x13a0)
++#define LS2H_FB_DITTAB_HI_VGA_REG	(LS2H_DC_REG_BASE + 0x13b0)
++#define LS2H_FB_PANCFG_DVO_REG		(LS2H_DC_REG_BASE + 0x13c0)
++#define LS2H_FB_PANCFG_VGA_REG		(LS2H_DC_REG_BASE + 0x13d0)
++#define LS2H_FB_PANTIM_DVO_REG		(LS2H_DC_REG_BASE + 0x13e0)
++#define LS2H_FB_PANTIM_VGA_REG		(LS2H_DC_REG_BASE + 0x13f0)
++
++#define LS2H_FB_HDISPLAY_DVO_REG	(LS2H_DC_REG_BASE + 0x1400)
++#define LS2H_FB_HDISPLAY_VGA_REG	(LS2H_DC_REG_BASE + 0x1410)
++#define LS2H_FB_HSYNC_DVO_REG		(LS2H_DC_REG_BASE + 0x1420)
++#define LS2H_FB_HSYNC_VGA_REG		(LS2H_DC_REG_BASE + 0x1430)
++
++#define LS2H_FB_VDISPLAY_DVO_REG	(LS2H_DC_REG_BASE + 0x1480)
++#define LS2H_FB_VDISPLAY_VGA_REG	(LS2H_DC_REG_BASE + 0x1490)
++#define LS2H_FB_VSYNC_DVO_REG		(LS2H_DC_REG_BASE + 0x14a0)
++#define LS2H_FB_VSYNC_VGA_REG		(LS2H_DC_REG_BASE + 0x14b0)
++
++#define LS2H_FB_GAMINDEX_DVO_REG	(LS2H_DC_REG_BASE + 0x14e0)
++#define LS2H_FB_GAMINDEX_VGA_REG	(LS2H_DC_REG_BASE + 0x14f0)
++#define LS2H_FB_GAMDATA_DVO_REG		(LS2H_DC_REG_BASE + 0x1500)
++#define LS2H_FB_GAMDATA_VGA_REG		(LS2H_DC_REG_BASE + 0x1510)
++
++#define LS2H_FB_CUR_CFG_REG		(LS2H_DC_REG_BASE + 0x1520)
++#define LS2H_FB_CUR_ADDR_REG		(LS2H_DC_REG_BASE + 0x1530)
++#define LS2H_FB_CUR_LOC_ADDR_REG	(LS2H_DC_REG_BASE + 0x1540)
++#define LS2H_FB_CUR_BACK_REG		(LS2H_DC_REG_BASE + 0x1550)
++#define LS2H_FB_CUR_FORE_REG		(LS2H_DC_REG_BASE + 0x1560)
++
++#define LS2H_FB_INT_REG			(LS2H_DC_REG_BASE + 0x1570)
++
++#define LS2H_FB_ADDR1_DVO_REG		(LS2H_DC_REG_BASE + 0x1580)
++#define LS2H_FB_ADDR1_VGA_REG		(LS2H_DC_REG_BASE + 0x1590)
++
++#define LS2H_FB_DAC_CTRL_REG		(LS2H_DC_REG_BASE + 0x1600)
++#define LS2H_FB_DVO_OUTPUT_REG		(LS2H_DC_REG_BASE + 0x1630)
++
++/* OTG regs */
++#define LS2H_OTG_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e60000)
++
++/* SPI regs */
++#define LS2H_SPI_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e70000)
++
++/* UART regs */
++#define LS2H_UART0_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e80000)
++#define LS2H_UART1_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e81000)
++#define LS2H_UART2_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e82000)
++#define LS2H_UART3_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e83000)
++
++/* I2C regs */
++#define LS2H_I2C0_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e90000)
++#define LS2H_I2C0_PRER_LO_REG		(LS2H_I2C0_REG_BASE + 0x0)
++#define LS2H_I2C0_PRER_HI_REG		(LS2H_I2C0_REG_BASE + 0x1)
++#define LS2H_I2C0_CTR_REG   		(LS2H_I2C0_REG_BASE + 0x2)
++#define LS2H_I2C0_TXR_REG   		(LS2H_I2C0_REG_BASE + 0x3)
++#define LS2H_I2C0_RXR_REG    		(LS2H_I2C0_REG_BASE + 0x3)
++#define LS2H_I2C0_CR_REG     		(LS2H_I2C0_REG_BASE + 0x4)
++#define LS2H_I2C0_SR_REG     		(LS2H_I2C0_REG_BASE + 0x4)
++
++#define LS2H_I2C1_REG_BASE		(LS2H_PCH_REG_BASE + 0x00e91000)
++#define LS2H_I2C1_PRER_LO_REG		(LS2H_I2C1_REG_BASE + 0x0)
++#define LS2H_I2C1_PRER_HI_REG		(LS2H_I2C1_REG_BASE + 0x1)
++#define LS2H_I2C1_CTR_REG    		(LS2H_I2C1_REG_BASE + 0x2)
++#define LS2H_I2C1_TXR_REG    		(LS2H_I2C1_REG_BASE + 0x3)
++#define LS2H_I2C1_RXR_REG    		(LS2H_I2C1_REG_BASE + 0x3)
++#define LS2H_I2C1_CR_REG     		(LS2H_I2C1_REG_BASE + 0x4)
++#define LS2H_I2C1_SR_REG     		(LS2H_I2C1_REG_BASE + 0x4)
++
++#define	CR_START			0x80
++#define	CR_STOP				0x40
++#define	CR_READ				0x20
++#define	CR_WRITE			0x10
++#define	CR_ACK				0x8
++#define	CR_IACK				0x1
++
++#define	SR_NOACK			0x80
++#define	SR_BUSY				0x40
++#define	SR_AL				0x20
++#define	SR_TIP				0x2
++#define	SR_IF				0x1
++
++/* PWM regs */
++#define LS2H_PWM_REG_BASE		(LS2H_PCH_REG_BASE + 0x00ea0000)
++
++/* HPET regs */
++#define LS2H_HPET_REG_BASE		(LS2H_PCH_REG_BASE + 0x00ec0000)
++
++/* AC97 regs */
++#define LS2H_AC97_REG_BASE		(LS2H_PCH_REG_BASE + 0x00ed0000)
++
++/* NAND regs */
++#define LS2H_NAND_REG_BASE		(LS2H_PCH_REG_BASE + 0x00ee0000)
++#define LS2H_NAND_CMD_REG		(LS2H_NAND_REG_BASE + 0x0000)
++#define LS2H_NAND_ADDR_C_REG		(LS2H_NAND_REG_BASE + 0x0004)
++#define LS2H_NAND_ADDR_R_REG		(LS2H_NAND_REG_BASE + 0x0008)
++#define LS2H_NAND_TIMING_REG		(LS2H_NAND_REG_BASE + 0x000c)
++#define LS2H_NAND_IDL_REG		(LS2H_NAND_REG_BASE + 0x0010)
++#define LS2H_NAND_STA_IDH_REG		(LS2H_NAND_REG_BASE + 0x0014)
++#define LS2H_NAND_PARAM_REG		(LS2H_NAND_REG_BASE + 0x0018)
++#define LS2H_NAND_OP_NUM_REG		(LS2H_NAND_REG_BASE + 0x001c)
++#define LS2H_NAND_CSRDY_MAP_REG		(LS2H_NAND_REG_BASE + 0x0020)
++#define LS2H_NAND_DMA_ACC_REG		(LS2H_NAND_REG_BASE + 0x0040)
++
++/* ACPI regs */
++#define LS2H_ACPI_REG_BASE		(LS2H_PCH_REG_BASE + 0x00ef0000)
++#define LS2H_PM_SOC_REG			(LS2H_ACPI_REG_BASE + 0x0000)
++#define LS2H_PM_RESUME_REG		(LS2H_ACPI_REG_BASE + 0x0004)
++#define LS2H_PM_RTC_REG			(LS2H_ACPI_REG_BASE + 0x0008)
++#define LS2H_PM1_STS_REG		(LS2H_ACPI_REG_BASE + 0x000c)
++#define LS2H_PM1_EN_REG			(LS2H_ACPI_REG_BASE + 0x0010)
++#define LS2H_PM1_CNT_REG		(LS2H_ACPI_REG_BASE + 0x0014)
++#define LS2H_PM1_TMR_REG		(LS2H_ACPI_REG_BASE + 0x0018)
++#define LS2H_P_CNT_REG			(LS2H_ACPI_REG_BASE + 0x001c)
++#define LS2H_P_LVL2_REG			(LS2H_ACPI_REG_BASE + 0x0020)
++#define LS2H_P_LVL3_REG			(LS2H_ACPI_REG_BASE + 0x0024)
++#define LS2H_GPE0_STS_REG		(LS2H_ACPI_REG_BASE + 0x0028)
++#define LS2H_GPE0_EN_REG		(LS2H_ACPI_REG_BASE + 0x002c)
++#define LS2H_RST_CNT_REG		(LS2H_ACPI_REG_BASE + 0x0030)
++#define LS2H_WD_SET_REG			(LS2H_ACPI_REG_BASE + 0x0034)
++#define LS2H_WD_TIMER_REG		(LS2H_ACPI_REG_BASE + 0x0038)
++#define LS2H_DVFS_CNT_REG		(LS2H_ACPI_REG_BASE + 0x003c)
++#define LS2H_DVFS_STS_REG		(LS2H_ACPI_REG_BASE + 0x0040)
++#define LS2H_MS_CNT_REG			(LS2H_ACPI_REG_BASE + 0x0044)
++#define LS2H_MS_THT_REG			(LS2H_ACPI_REG_BASE + 0x0048)
++#define	LS2H_THSENS_CNT_REG		(LS2H_ACPI_REG_BASE + 0x004c)
++#define LS2H_GEN_RTC1_REG		(LS2H_ACPI_REG_BASE + 0x0050)
++#define LS2H_GEN_RTC2_REG		(LS2H_ACPI_REG_BASE + 0x0054)
++
++/* RTC regs */
++#define LS2H_RTC_REG_BASE		(LS2H_PCH_REG_BASE + 0x00ef8000)
++#define	LS2H_TOY_TRIM_REG		(LS2H_RTC_REG_BASE + 0x0020)
++#define	LS2H_TOY_WRITE0_REG		(LS2H_RTC_REG_BASE + 0x0024)
++#define	LS2H_TOY_WRITE1_REG		(LS2H_RTC_REG_BASE + 0x0028)
++#define	LS2H_TOY_READ0_REG		(LS2H_RTC_REG_BASE + 0x002c)
++#define	LS2H_TOY_READ1_REG		(LS2H_RTC_REG_BASE + 0x0030)
++#define	LS2H_TOY_MATCH0_REG		(LS2H_RTC_REG_BASE + 0x0034)
++#define	LS2H_TOY_MATCH1_REG		(LS2H_RTC_REG_BASE + 0x0038)
++#define	LS2H_TOY_MATCH2_REG		(LS2H_RTC_REG_BASE + 0x003c)
++#define	LS2H_RTC_CTRL_REG		(LS2H_RTC_REG_BASE + 0x0040)
++#define	LS2H_RTC_TRIM_REG		(LS2H_RTC_REG_BASE + 0x0060)
++#define	LS2H_RTC_WRITE0_REG		(LS2H_RTC_REG_BASE + 0x0064)
++#define	LS2H_RTC_READ0_REG		(LS2H_RTC_REG_BASE + 0x0068)
++#define	LS2H_RTC_MATCH0_REG		(LS2H_RTC_REG_BASE + 0x006c)
++#define	LS2H_RTC_MATCH1_REG		(LS2H_RTC_REG_BASE + 0x0070)
++#define	LS2H_RTC_MATCH2_REG		(LS2H_RTC_REG_BASE + 0x0074)
++
++/* LPC regs */
++#define LS2H_LPC_IO_BASE		(LS2H_PCH_REG_BASE + 0x00f00000)
++#define LS2H_LPC_REG_BASE		(LS2H_PCH_REG_BASE + 0x00f10000)
++#define LS2H_LPC_CFG0_REG		(LS2H_LPC_REG_BASE + 0x0)
++#define LS2H_LPC_CFG1_REG		(LS2H_LPC_REG_BASE + 0x4)
++#define LS2H_LPC_CFG2_REG		(LS2H_LPC_REG_BASE + 0x8)
++#define LS2H_LPC_CFG3_REG		(LS2H_LPC_REG_BASE + 0xc)
++#define LS2H_LPC_INT_CTL		LS2H_LPC_CFG0_REG
++#define LS2H_LPC_INT_ENA		LS2H_LPC_CFG1_REG
++#define LS2H_LPC_INT_STS		LS2H_LPC_CFG2_REG
++#define LS2H_LPC_INT_CLR		LS2H_LPC_CFG3_REG
++
++/* REG ACCESS*/
++#define ls2h_readb(addr)		(*(volatile u8 *)CKSEG1ADDR(addr))
++#define ls2h_readw(addr)		(*(volatile u16 *)CKSEG1ADDR(addr))
++#define ls2h_readl(addr)		(*(volatile u32 *)CKSEG1ADDR(addr))
++#define ls2h_writeb(val, addr)		*(volatile u8 *)CKSEG1ADDR(addr) = (val)
++#define ls2h_writew(val, addr)		*(volatile u16 *)CKSEG1ADDR(addr) = (val)
++#define ls2h_writel(val, addr)		*(volatile u32 *)CKSEG1ADDR(addr) = (val)
++
++#define LS2H_PCIE_PORT0             0
++#define LS2H_PCIE_PORT1             1
++#define LS2H_PCIE_PORT2             2
++#define LS2H_PCIE_PORT3             3
++#define LS2H_PCIE_MAX_PORTNUM       3
++
++#define LS2H_CHIP_CFG_REG_CLK_CTRL3     0x22c
++#define LS2H_CLK_CTRL3_BIT_PEREF_EN(portnum) (1 << (24 + portnum))
++
++#define LS2H_PCIE_MEM0_BASE(portnum)       (0x10000000 + (portnum << 25))
++#define LS2H_PCIE_MEM1_BASE(portnum)       (0x40000000 + (portnum << 28))
++#define LS2H_PCIE_IO_BASE(portnum)         (0x18100000 + (portnum << 22))
++#define LS2H_PCIE_PORT_HEAD_BASE(portnum)  (0x18114000 + (portnum << 22))
++#define LS2H_PCIE_DEV_HEAD_BASE(portnum)   (0x18116000 + (portnum << 22))
++#define LS2H_PCIE_PORT_REG_BASE(portnum)   (0x18118000 + (portnum << 22))
++#define LS2H_PCIE_PORT_REG_CTR0			0x0
++#define  LS2H_PCIE_REG_CTR0_BIT_LTSSM_EN	(1 << 3)
++#define  LS2H_PCIE_REG_CTR0_BIT_REQ_L1		(1 << 12)
++#define  LS2H_PCIE_REG_CTR0_BIT_RDY_L23		(1 << 13)
++#define LS2H_PCIE_PORT_REG_CTR1			0x4
++#define LS2H_PCIE_PORT_REG_STAT0		0x8
++#define LS2H_PCIE_PORT_REG_STAT1		0xc
++#define  LS2H_PCIE_REG_STAT1_MASK_LTSSM		0x0000003f
++#define  LS2H_PCIE_REG_STAT1_BIT_LINKUP		(1 << 6)
++#define LS2H_PCIE_PORT_REG_INTSTS		0x18
++#define LS2H_PCIE_PORT_REG_INTCLR		0x1c
++#define LS2H_PCIE_PORT_REG_INTMSK		0x20
++#define LS2H_PCIE_PORT_REG_CFGADDR		0x24
++#define LS2H_PCIE_PORT_REG_CTR_STAT		0x28
++#define  LS2H_PCIE_REG_CTR_STAT_BIT_ISX4	(1 << 26)
++#define  LS2H_PCIE_REG_CTR_STAT_BIT_ISRC	(1 << 27)
++#define LS2H_PCI_EXP_LNKCAP			0x7c
++
++static inline int pcie_get_portnum(void *sysdata)
++{
++	u64 memstart = ((struct pci_controller *)(sysdata))->mem_resource->start;
++	if (memstart < LS2H_PCIE_MEM1_BASE(0))
++		return (memstart - LS2H_PCIE_MEM0_BASE(0)) >> 25;
++	else
++		return (memstart - LS2H_PCIE_MEM1_BASE(0)) >> 28;
++}
++#define LS2H_PCIE_GET_PORTNUM pcie_get_portnum
++
++enum board_type {
++	LS2H,
++	RS780E
++};
++
++struct platform_controller_hub {
++	int	board_type;
++	int 	pcidev_max_funcs;
++	void	(*early_config)(void);
++	void	(*init_irq)(void);
++	void	(*init_swiotlb)(void);
++	void	(*irq_dispatch)(void);
++	int	(*pcibios_map_irq)(struct pci_dev *dev, u8 slot, u8 pin);
++	int	(*pcibios_dev_init)(struct pci_dev *dev);
++	void	(*pch_arch_initcall)(void);
++	void	(*pch_device_initcall)(void);
++};
++
++extern struct platform_controller_hub *loongson_pch;
++
++#endif
+diff --git a/arch/mips/include/asm/mach-loongson64/workarounds.h b/arch/mips/include/asm/mach-loongson64/workarounds.h
+index ca6d4f1a..3fa8f66e 100644
+--- a/arch/mips/include/asm/mach-loongson64/workarounds.h
++++ b/arch/mips/include/asm/mach-loongson64/workarounds.h
+@@ -6,5 +6,6 @@
+ #define WORKAROUND_LVDS_EC 	0x00000004
+ #define WORKAROUND_LVDS_GPIO	0x00000008
+ #define WORKAROUND_USB_TMCS	0x00000010
++#define WORKAROUND_PCIE_DMA	0x00000020
+
+ #endif
+diff --git a/arch/mips/loongson64/common/dma-swiotlb.c b/arch/mips/loongson64/common/dma-swiotlb.c
+index 4ffa6fc8..72034160 100644
+--- a/arch/mips/loongson64/common/dma-swiotlb.c
++++ b/arch/mips/loongson64/common/dma-swiotlb.c
+@@ -1,5 +1,6 @@
+ #include <linux/mm.h>
+ #include <linux/init.h>
++#include <linux/sizes.h>
+ #include <linux/dma-mapping.h>
+ #include <linux/scatterlist.h>
+ #include <linux/swiotlb.h>
+@@ -7,6 +8,7 @@
+
+ #include <asm/bootinfo.h>
+ #include <boot_param.h>
++#include <loongson-pch.h>
+ #include <dma-coherence.h>
+
+ static void *loongson_dma_alloc_coherent(struct device *dev, size_t size,
+@@ -33,7 +35,7 @@ static void *loongson_dma_alloc_coherent(struct device *dev, size_t size,
+ 	else
+ #endif
+ 	;
+-	gfp |= __GFP_NORETRY;
++	gfp |= __GFP_NORETRY|__GFP_NOWARN;
+
+ 	ret = swiotlb_alloc_coherent(dev, size, dma_handle, gfp);
+ 	mb();
+@@ -46,14 +48,22 @@ static void loongson_dma_free_coherent(struct device *dev, size_t size,
+ 	swiotlb_free_coherent(dev, size, vaddr, dma_handle);
+ }
+
++#define PCIE_DMA_ALIGN 16
++
+ static dma_addr_t loongson_dma_map_page(struct device *dev, struct page *page,
+ 				unsigned long offset, size_t size,
+ 				enum dma_data_direction dir,
+ 				unsigned long attrs)
+ {
+-	dma_addr_t daddr = swiotlb_map_page(dev, page, offset, size,
+-					dir, attrs);
++	dma_addr_t daddr;
++
++	if (offset % PCIE_DMA_ALIGN)
++		daddr = swiotlb_map_page(dev, page, offset, size, dir, &dev->archdata.dma_attrs);
++	else
++		daddr = swiotlb_map_page(dev, page, offset, size, dir, NULL);
++
+ 	mb();
++
+ 	return daddr;
+ }
+
+@@ -61,7 +71,8 @@ static int loongson_dma_map_sg(struct device *dev, struct scatterlist *sg,
+ 				int nents, enum dma_data_direction dir,
+ 				unsigned long attrs)
+ {
+-	int r = swiotlb_map_sg_attrs(dev, sg, nents, dir, 0);
++	int r = swiotlb_map_sg_attrs(dev, sg, nents, dir,
++					&dev->archdata.dma_attrs);
+ 	mb();
+
+ 	return r;
+@@ -98,7 +109,25 @@ static int loongson_dma_set_mask(struct device *dev, u64 mask)
+ 	return 0;
+ }
+
+-dma_addr_t phys_to_dma(struct device *dev, phys_addr_t paddr)
++#define SZ_4G	0x100000000ULL
++
++static dma_addr_t loongson_ls2h_phys_to_dma(struct device *dev, phys_addr_t paddr)
++{
++	dma_addr_t daddr;
++
++	daddr = (paddr < SZ_256M) ? paddr :
++		(paddr - loongson_sysconf.high_physmem_start + SZ_256M);
++
++	return (daddr < SZ_4G) ? daddr : -1ULL; /* DMA address should be below 4GB */
++}
++
++static phys_addr_t loongson_ls2h_dma_to_phys(struct device *dev, dma_addr_t daddr)
++{
++	return (daddr < SZ_256M) ? daddr :
++		(daddr + loongson_sysconf.high_physmem_start - SZ_256M);
++}
++
++static dma_addr_t loongson_rs780_phys_to_dma(struct device *dev, phys_addr_t paddr)
+ {
+ 	long nid;
+ #ifdef CONFIG_PHYS48_TO_HT40
+@@ -110,7 +139,7 @@ dma_addr_t phys_to_dma(struct device *dev, phys_addr_t paddr)
+ 	return paddr;
+ }
+
+-phys_addr_t dma_to_phys(struct device *dev, dma_addr_t daddr)
++static phys_addr_t loongson_rs780_dma_to_phys(struct device *dev, dma_addr_t daddr)
+ {
+ 	long nid;
+ #ifdef CONFIG_PHYS48_TO_HT40
+@@ -122,24 +151,55 @@ phys_addr_t dma_to_phys(struct device *dev, dma_addr_t daddr)
+ 	return daddr;
+ }
+
+-static struct dma_map_ops loongson_dma_map_ops = {
+-	.alloc = loongson_dma_alloc_coherent,
+-	.free = loongson_dma_free_coherent,
+-	.map_page = loongson_dma_map_page,
+-	.unmap_page = swiotlb_unmap_page,
+-	.map_sg = loongson_dma_map_sg,
+-	.unmap_sg = swiotlb_unmap_sg_attrs,
+-	.sync_single_for_cpu = swiotlb_sync_single_for_cpu,
+-	.sync_single_for_device = loongson_dma_sync_single_for_device,
+-	.sync_sg_for_cpu = swiotlb_sync_sg_for_cpu,
+-	.sync_sg_for_device = loongson_dma_sync_sg_for_device,
+-	.mapping_error = swiotlb_dma_mapping_error,
+-	.dma_supported = swiotlb_dma_supported,
+-	.set_dma_mask = loongson_dma_set_mask
++struct loongson_dma_map_ops {
++	struct dma_map_ops dma_map_ops;
++	dma_addr_t (*phys_to_dma)(struct device *dev, phys_addr_t paddr);
++	phys_addr_t (*dma_to_phys)(struct device *dev, dma_addr_t daddr);
++};
++
++dma_addr_t phys_to_dma(struct device *dev, phys_addr_t paddr)
++{
++	struct loongson_dma_map_ops *ops = container_of(get_dma_ops(dev),
++					struct loongson_dma_map_ops, dma_map_ops);
++
++	return ops->phys_to_dma(dev, paddr);
++}
++
++phys_addr_t dma_to_phys(struct device *dev, dma_addr_t daddr)
++{
++	struct loongson_dma_map_ops *ops = container_of(get_dma_ops(dev),
++					struct loongson_dma_map_ops, dma_map_ops);
++
++	return ops->dma_to_phys(dev, daddr);
++}
++
++static struct loongson_dma_map_ops loongson_linear_dma_map_ops = {
++	.dma_map_ops = {
++		.alloc = loongson_dma_alloc_coherent,
++		.free = loongson_dma_free_coherent,
++		.map_page = loongson_dma_map_page,
++		.unmap_page = swiotlb_unmap_page,
++		.map_sg = loongson_dma_map_sg,
++		.unmap_sg = swiotlb_unmap_sg_attrs,
++		.sync_single_for_cpu = swiotlb_sync_single_for_cpu,
++		.sync_single_for_device = loongson_dma_sync_single_for_device,
++		.sync_sg_for_cpu = swiotlb_sync_sg_for_cpu,
++		.sync_sg_for_device = loongson_dma_sync_sg_for_device,
++		.mapping_error = swiotlb_dma_mapping_error,
++		.dma_supported = swiotlb_dma_supported,
++		.set_dma_mask = loongson_dma_set_mask
++	},
++	.phys_to_dma = loongson_rs780_phys_to_dma,
++	.dma_to_phys = loongson_rs780_dma_to_phys
+ };
+
+ void __init plat_swiotlb_setup(void)
+ {
+ 	swiotlb_init(1);
+-	mips_dma_map_ops = &loongson_dma_map_ops;
++	mips_dma_map_ops = &loongson_linear_dma_map_ops.dma_map_ops;
++
++	if (loongson_pch && loongson_pch->board_type == LS2H) {
++		loongson_linear_dma_map_ops.phys_to_dma = loongson_ls2h_phys_to_dma;
++		loongson_linear_dma_map_ops.dma_to_phys = loongson_ls2h_dma_to_phys;
++	}
+ }
+diff --git a/arch/mips/loongson64/common/env.c b/arch/mips/loongson64/common/env.c
+index a1b939a6..ce8cad5f 100644
+--- a/arch/mips/loongson64/common/env.c
++++ b/arch/mips/loongson64/common/env.c
+@@ -36,6 +36,10 @@ unsigned long long smp_group[4];
+ unsigned int has_systab = 0;
+ unsigned long systab_addr;
+
++struct platform_controller_hub *loongson_pch;
++extern struct platform_controller_hub ls2h_pch;
++extern struct platform_controller_hub rs780_pch;
++
+ #define parse_even_earlier(res, option, p)				\
+ do {									\
+ 	unsigned int tmp __maybe_unused;				\
+@@ -74,6 +78,7 @@ void __init prom_init_env(void)
+ 	struct boot_params *boot_p;
+ 	struct loongson_params *loongson_p;
+ 	struct system_loongson *esys;
++	struct board_devices *eboard;
+ 	struct efi_cpuinfo_loongson *ecpu;
+ 	struct irq_source_routing_table *eirq_source;
+
+@@ -85,6 +90,8 @@ void __init prom_init_env(void)
+ 		((u64)loongson_p + loongson_p->system_offset);
+ 	ecpu = (struct efi_cpuinfo_loongson *)
+ 		((u64)loongson_p + loongson_p->cpu_offset);
++	eboard	= (struct board_devices *)
++		((u64)loongson_p + loongson_p->boarddev_table_offset);
+ 	eirq_source = (struct irq_source_routing_table *)
+ 		((u64)loongson_p + loongson_p->irq_offset);
+ 	loongson_memmap = (struct efi_memory_map_loongson *)
+@@ -162,6 +169,15 @@ void __init prom_init_env(void)
+ 		loongson_sysconf.dma_mask_bits > 64)
+ 		loongson_sysconf.dma_mask_bits = 32;
+
++	if (strstr(eboard->name,"2H")) {
++		loongson_pch = &ls2h_pch;
++		loongson_sysconf.ec_sci_irq = 0x80;
++	}
++	else {
++		loongson_pch = &rs780_pch;
++		loongson_sysconf.ec_sci_irq = 0x07;
++	}
++
+ 	loongson_sysconf.restart_addr = boot_p->reset_system.ResetWarm;
+ 	loongson_sysconf.poweroff_addr = boot_p->reset_system.Shutdown;
+ 	loongson_sysconf.suspend_addr = boot_p->reset_system.DoSuspend;
+diff --git a/arch/mips/loongson64/common/init.c b/arch/mips/loongson64/common/init.c
+index 6ef17120..bb557286 100644
+--- a/arch/mips/loongson64/common/init.c
++++ b/arch/mips/loongson64/common/init.c
+@@ -15,6 +15,7 @@
+ #include <asm/cacheflush.h>
+
+ #include <loongson.h>
++#include <loongson-pch.h>
+
+ /* Loongson CPU address windows config space base address */
+ unsigned long __maybe_unused _loongson_addrwincfg_base;
+@@ -43,6 +44,9 @@ void __init prom_init(void)
+ 	set_io_port_base((unsigned long)
+ 		ioremap(LOONGSON_PCIIO_BASE, LOONGSON_PCIIO_SIZE));
+
++	if (loongson_pch)
++		loongson_pch->early_config();
++
+ #ifdef CONFIG_NUMA
+ 	prom_init_numa_memory();
+ #else
+diff --git a/arch/mips/loongson64/common/mem.c b/arch/mips/loongson64/common/mem.c
+index 788f4426..7b53db10 100644
+--- a/arch/mips/loongson64/common/mem.c
++++ b/arch/mips/loongson64/common/mem.c
+@@ -73,11 +73,15 @@ void __init prom_init_memory(void)
+ 		if (node_id == 0) {
+ 			switch (mem_type) {
+ 			case SYSTEM_RAM_LOW:
++				loongson_sysconf.low_physmem_start =
++					loongson_memmap->map[i].mem_start;
+ 				add_memory_region(loongson_memmap->map[i].mem_start,
+ 					(u64)loongson_memmap->map[i].mem_size << 20,
+ 					BOOT_MEM_RAM);
+ 				break;
+ 			case SYSTEM_RAM_HIGH:
++				loongson_sysconf.high_physmem_start =
++					loongson_memmap->map[i].mem_start;
+ 				add_memory_region(loongson_memmap->map[i].mem_start,
+ 					(u64)loongson_memmap->map[i].mem_size << 20,
+ 					BOOT_MEM_RAM);
+diff --git a/arch/mips/loongson64/common/pci.c b/arch/mips/loongson64/common/pci.c
+index 4e257564..914f0491 100644
+--- a/arch/mips/loongson64/common/pci.c
++++ b/arch/mips/loongson64/common/pci.c
+@@ -12,6 +12,7 @@
+ #include <pci.h>
+ #include <loongson.h>
+ #include <boot_param.h>
++#include <loongson-pch.h>
+
+ static struct resource loongson_pci_mem_resource = {
+ 	.name	= "pci memory space",
+@@ -82,6 +83,9 @@ extern int sbx00_acpi_init(void);
+
+ static int __init pcibios_init(void)
+ {
++	if (loongson_pch && loongson_pch->board_type == LS2H)
++		return 0;
++
+ 	setup_pcimap();
+
+ 	loongson_pci_controller.io_map_base = mips_io_port_base;
+diff --git a/arch/mips/loongson64/common/rtc.c b/arch/mips/loongson64/common/rtc.c
+index b5709af0..c80f1995 100644
+--- a/arch/mips/loongson64/common/rtc.c
++++ b/arch/mips/loongson64/common/rtc.c
+@@ -13,6 +13,7 @@
+ #include <linux/kernel.h>
+ #include <linux/platform_device.h>
+ #include <linux/mc146818rtc.h>
++#include <loongson-pch.h>
+
+ static struct resource loongson_rtc_resources[] = {
+ 	{
+@@ -36,7 +37,11 @@ static struct platform_device loongson_rtc_device = {
+
+ static int __init loongson_rtc_platform_init(void)
+ {
++	if (loongson_pch && loongson_pch->board_type == LS2H)
++		return 0;
++
+ 	platform_device_register(&loongson_rtc_device);
++
+ 	return 0;
+ }
+
+diff --git a/arch/mips/loongson64/loongson-3/Makefile b/arch/mips/loongson64/loongson-3/Makefile
+index 9c8f5812..380c1e08 100644
+--- a/arch/mips/loongson64/loongson-3/Makefile
++++ b/arch/mips/loongson64/loongson-3/Makefile
+@@ -1,7 +1,8 @@
+ #
+ # Makefile for Loongson-3 family machines
+ #
+-obj-y			+= irq.o cop2-ex.o platform.o acpi_init.o clock.o ec_wpce775l.o workarounds.o
++obj-y			+= irq.o cop2-ex.o platform.o acpi_init.o clock.o ec_wpce775l.o workarounds.o \
++			   ls2h-irq.o ls2h-platform.o rs780-irq.o rs780-platform.o
+
+ obj-$(CONFIG_SMP)	+= smp.o
+
+diff --git a/arch/mips/loongson64/loongson-3/hpet.c b/arch/mips/loongson64/loongson-3/hpet.c
+index a2631a52..2048e0f1 100644
+--- a/arch/mips/loongson64/loongson-3/hpet.c
++++ b/arch/mips/loongson64/loongson-3/hpet.c
+@@ -7,6 +7,7 @@
+
+ #include <asm/hpet.h>
+ #include <asm/time.h>
++#include <loongson-pch.h>
+
+ #define SMBUS_CFG_BASE		(loongson_sysconf.ht_control_base + 0x0300a000)
+ #define SMBUS_PCI_REG40		0x40
+@@ -16,6 +17,7 @@
+ #define HPET_MIN_CYCLES		16
+ #define HPET_MIN_PROG_DELTA	(HPET_MIN_CYCLES * 12)
+
++extern int hpet_enabled;
+ static DEFINE_SPINLOCK(hpet_lock);
+ DEFINE_PER_CPU(struct clock_event_device, hpet_clockevent_device);
+
+@@ -226,7 +228,11 @@ void __init setup_hpet_timer(void)
+ 	unsigned int cpu = smp_processor_id();
+ 	struct clock_event_device *cd;
+
++	if (loongson_pch && loongson_pch->board_type != RS780E)
++		return;
++
+ 	hpet_setup();
++	hpet_enabled = 1;
+
+ 	cd = &per_cpu(hpet_clockevent_device, cpu);
+ 	cd->name = "hpet";
+@@ -279,6 +285,9 @@ static struct clocksource csrc_hpet = {
+
+ int __init init_hpet_clocksource(void)
+ {
++	if (!hpet_enabled)
++		return -EBUSY;
++
+ 	csrc_hpet.mult = clocksource_hz2mult(HPET_FREQ, csrc_hpet.shift);
+ 	return clocksource_register_hz(&csrc_hpet, HPET_FREQ);
+ }
+diff --git a/arch/mips/loongson64/loongson-3/irq.c b/arch/mips/loongson64/loongson-3/irq.c
+index 27e4ed3b..5ffb7606 100644
+--- a/arch/mips/loongson64/loongson-3/irq.c
++++ b/arch/mips/loongson64/loongson-3/irq.c
+@@ -7,14 +7,9 @@
+ #include <asm/i8259.h>
+ #include <asm/mipsregs.h>
+
++#include <loongson-pch.h>
+ #include "smp.h"
+
+-extern void loongson3_send_irq_by_ipi(int cpu, int irqs);
+-
+-unsigned int irq_cpu[16] = {[0 ... 15] = -1};
+-unsigned int ht_irq[] = {0, 1, 3, 4, 5, 6, 7, 8, 12, 14, 15};
+-unsigned int local_irq = 1<<0 | 1<<1 | 1<<2 | 1<<7 | 1<<8 | 1<<12;
+-
+ int plat_set_irq_affinity(struct irq_data *d, const struct cpumask *affinity,
+ 			  bool force)
+ {
+@@ -35,46 +30,6 @@ int plat_set_irq_affinity(struct irq_data *d, const struct cpumask *affinity,
+ 	return IRQ_SET_MASK_OK_NOCOPY;
+ }
+
+-static void ht_irqdispatch(void)
+-{
+-	unsigned int i, irq;
+-	struct irq_data *irqd;
+-	struct cpumask affinity;
+-
+-	irq = LOONGSON_HT1_INT_VECTOR(0);
+-	LOONGSON_HT1_INT_VECTOR(0) = irq; /* Acknowledge the IRQs */
+-
+-	for (i = 0; i < ARRAY_SIZE(ht_irq); i++) {
+-		if (!(irq & (0x1 << ht_irq[i])))
+-			continue;
+-
+-		/* handled by local core */
+-		if (local_irq & (0x1 << ht_irq[i])) {
+-			do_IRQ(ht_irq[i]);
+-			continue;
+-		}
+-
+-		irqd = irq_get_irq_data(ht_irq[i]);
+-		cpumask_and(&affinity, irqd->common->affinity, cpu_active_mask);
+-		if (cpumask_empty(&affinity)) {
+-			do_IRQ(ht_irq[i]);
+-			continue;
+-		}
+-
+-		irq_cpu[ht_irq[i]] = cpumask_next(irq_cpu[ht_irq[i]], &affinity);
+-		if (irq_cpu[ht_irq[i]] >= nr_cpu_ids)
+-			irq_cpu[ht_irq[i]] = cpumask_first(&affinity);
+-
+-		if (irq_cpu[ht_irq[i]] == 0) {
+-			do_IRQ(ht_irq[i]);
+-			continue;
+-		}
+-
+-		/* balanced by other cores */
+-		loongson3_send_irq_by_ipi(irq_cpu[ht_irq[i]], (0x1 << ht_irq[i]));
+-	}
+-}
+-
+ #define UNUSED_IPS (CAUSEF_IP5 | CAUSEF_IP4 | CAUSEF_IP1 | CAUSEF_IP0)
+
+ void mach_irq_dispatch(unsigned int pending)
+@@ -86,7 +41,7 @@ void mach_irq_dispatch(unsigned int pending)
+ 		loongson3_ipi_interrupt(NULL);
+ #endif
+ 	if (pending & CAUSEF_IP3)
+-		ht_irqdispatch();
++		loongson_pch->irq_dispatch();
+ 	if (pending & CAUSEF_IP2)
+ 		do_IRQ(LOONGSON_UART_IRQ);
+ 	if (pending & UNUSED_IPS) {
+@@ -151,37 +106,20 @@ static struct irq_chip loongson_irq_chip = {
+ 	.irq_eoi	= unmask_loongson_irq,
+ };
+
+-void irq_router_init(void)
+-{
+-	int i;
+-
+-	/* route LPC int to cpu core0 int 0 */
+-	LOONGSON_INT_ROUTER_LPC =
+-		LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 0);
+-	/* route HT1 int0 ~ int7 to cpu core0 INT1*/
+-	for (i = 0; i < 8; i++)
+-		LOONGSON_INT_ROUTER_HT1(i) =
+-			LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 1);
+-	/* enable HT1 interrupt */
+-	LOONGSON_HT1_INTN_EN(0) = 0xffffffff;
+-	/* enable router interrupt intenset */
+-	LOONGSON_INT_ROUTER_INTENSET =
+-		LOONGSON_INT_ROUTER_INTEN | (0xffff << 16) | 0x1 << 10;
+-}
+-
+ void __init mach_init_irq(void)
+ {
+ 	clear_c0_status(ST0_IM | ST0_BEV);
+
+-	irq_router_init();
+ 	mips_cpu_irq_init();
+-	init_i8259_irqs();
++	if (loongson_pch)
++		loongson_pch->init_irq();
++
++	/* setup CASCADE irq */
++	setup_irq(LOONGSON_BRIDGE_IRQ, &cascade_irqaction);
++
+ 	irq_set_chip_and_handler(LOONGSON_UART_IRQ,
+ 			&loongson_irq_chip, handle_level_irq);
+
+-	/* setup HT1 irq */
+-	setup_irq(LOONGSON_HT1_IRQ, &cascade_irqaction);
+-
+ 	set_c0_status(STATUSF_IP2 | STATUSF_IP6);
+ }
+
+diff --git a/arch/mips/loongson64/loongson-3/ls2h-irq.c b/arch/mips/loongson64/loongson-3/ls2h-irq.c
+new file mode 100644
+index 00000000..3cebb694
+--- /dev/null
++++ b/arch/mips/loongson64/loongson-3/ls2h-irq.c
+@@ -0,0 +1,235 @@
++/*
++ *  Copyright (C) 2013, Loongson Technology Corporation Limited, Inc.
++ *
++ *  This program is free software; you can distribute it and/or modify it
++ *  under the terms of the GNU General Public License (Version 2) as
++ *  published by the Free Software Foundation.
++ *
++ *  This program is distributed in the hope it will be useful, but WITHOUT
++ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ *  for more details.
++ *
++ */
++#include <linux/init.h>
++#include <linux/interrupt.h>
++
++#include <asm/io.h>
++#include <asm/irq_cpu.h>
++#include <asm/mipsregs.h>
++#include <asm/smp.h>
++#include <asm/delay.h>
++#include <irq.h>
++#include <loongson.h>
++#include <boot_param.h>
++#include <loongson-pch.h>
++#include <linux/cpumask.h>
++
++static struct ls2h_intctl_regs volatile *int_ctrl_regs
++	= (struct ls2h_intctl_regs volatile *)(CKSEG1ADDR(LS2H_INT_REG_BASE));
++
++static DEFINE_SPINLOCK(pch_irq_lock);
++
++static void ack_pch_irq(struct irq_data *d)
++{
++	int irq_nr;
++	unsigned long flags;
++
++	spin_lock_irqsave(&pch_irq_lock, flags);
++
++	irq_nr = d->irq - LS2H_PCH_IRQ_BASE;
++	(int_ctrl_regs + (irq_nr >> 5))->int_clr = (1 << (irq_nr & 0x1f));
++
++	spin_unlock_irqrestore(&pch_irq_lock, flags);
++}
++
++static void mask_pch_irq(struct irq_data *d)
++{
++	int irq_nr;
++	unsigned long flags;
++
++	spin_lock_irqsave(&pch_irq_lock, flags);
++
++	irq_nr = d->irq - LS2H_PCH_IRQ_BASE;
++	(int_ctrl_regs + (irq_nr >> 5))->int_en &= ~(1 << (irq_nr & 0x1f));
++
++	spin_unlock_irqrestore(&pch_irq_lock, flags);
++}
++
++static void mask_ack_pch_irq(struct irq_data *d)
++{
++	int irq_nr;
++	unsigned long flags;
++
++	spin_lock_irqsave(&pch_irq_lock, flags);
++
++	irq_nr = d->irq - LS2H_PCH_IRQ_BASE;
++	(int_ctrl_regs + (irq_nr >> 5))->int_clr = (1 << (irq_nr & 0x1f));
++	(int_ctrl_regs + (irq_nr >> 5))->int_en &= ~(1 << (irq_nr & 0x1f));
++
++	spin_unlock_irqrestore(&pch_irq_lock, flags);
++}
++
++static void unmask_pch_irq(struct irq_data *d)
++{
++	int irq_nr;
++	unsigned long flags;
++
++	spin_lock_irqsave(&pch_irq_lock, flags);
++
++	irq_nr = d->irq - LS2H_PCH_IRQ_BASE;
++	(int_ctrl_regs + (irq_nr >> 5))->int_en |= (1 << (irq_nr & 0x1f));
++
++	spin_unlock_irqrestore(&pch_irq_lock, flags);
++}
++
++#define eoi_pch_irq unmask_pch_irq
++
++static struct irq_chip pch_irq_chip = {
++	.name		= "Loongson",
++	.irq_ack	= ack_pch_irq,
++	.irq_mask	= mask_pch_irq,
++	.irq_mask_ack	= mask_ack_pch_irq,
++	.irq_unmask	= unmask_pch_irq,
++	.irq_eoi	= eoi_pch_irq,
++};
++
++extern void loongson3_ipi_interrupt(struct pt_regs *regs);
++
++static DEFINE_SPINLOCK(lpc_irq_lock);
++
++static void ack_lpc_irq(struct irq_data *d)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&lpc_irq_lock, flags);
++
++	ls2h_writel(0x1 << (d->irq), LS2H_LPC_INT_CLR);
++
++	spin_unlock_irqrestore(&lpc_irq_lock, flags);
++}
++
++static void mask_lpc_irq(struct irq_data *d)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&lpc_irq_lock, flags);
++
++	ls2h_writel(ls2h_readl(LS2H_LPC_INT_ENA) & ~(0x1 << (d->irq)), LS2H_LPC_INT_ENA);
++
++	spin_unlock_irqrestore(&lpc_irq_lock, flags);
++}
++
++static void mask_ack_lpc_irq(struct irq_data *d)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&lpc_irq_lock, flags);
++
++	ls2h_writel(0x1 << (d->irq), LS2H_LPC_INT_CLR);
++	ls2h_writel(ls2h_readl(LS2H_LPC_INT_ENA) & ~(0x1 << (d->irq)), LS2H_LPC_INT_ENA);
++
++	spin_unlock_irqrestore(&lpc_irq_lock, flags);
++}
++
++static void unmask_lpc_irq(struct irq_data *d)
++{
++	unsigned long flags;
++
++	spin_lock_irqsave(&lpc_irq_lock, flags);
++
++	ls2h_writel(ls2h_readl(LS2H_LPC_INT_ENA) | (0x1 << (d->irq)), LS2H_LPC_INT_ENA);
++
++	spin_unlock_irqrestore(&lpc_irq_lock, flags);
++}
++
++#define eoi_lpc_irq unmask_lpc_irq
++
++static struct irq_chip lpc_irq_chip = {
++	.name		= "Loongson",
++	.irq_ack	= ack_lpc_irq,
++	.irq_mask	= mask_lpc_irq,
++	.irq_mask_ack	= mask_ack_lpc_irq,
++	.irq_unmask	= unmask_lpc_irq,
++	.irq_eoi	= eoi_lpc_irq,
++};
++
++void ls2h_irq_dispatch(void)
++{
++	int i, intstatus, irq, irqs, lpc_irq;
++
++	for (i = 0; i < 5; i++) {
++		if ((intstatus = (int_ctrl_regs + i)->int_isr) == 0)
++			continue;
++
++		while ((irq = ffs(intstatus))) {
++			if (!irq) {
++				pr_info("Unknow INT%d: intstatus %x\n", i, intstatus);
++				spurious_interrupt();
++			} else if ((i == 0) && (intstatus & (1 << 13))) {
++				irqs = ls2h_readl(LS2H_LPC_INT_ENA) & ls2h_readl(LS2H_LPC_INT_STS) & 0xfeff;
++				if (irqs)
++					while ((lpc_irq = ffs(irqs))) {
++						do_IRQ(lpc_irq - 1);
++						irqs &= ~(1 << (lpc_irq-1));
++					}
++			} else
++				do_IRQ(LS2H_PCH_IRQ_BASE + i * 32 + irq - 1);
++
++			intstatus &= ~(1 << (irq-1));
++		}
++	}
++}
++
++void ls2h_irq_router_init(void)
++{
++	/* Route INTn0 to Core0 INT1 */
++	LOONGSON_INT_ROUTER_ENTRY(0) = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 1);
++
++	/* Route the LPC interrupt to Core0 INT0 */
++	LOONGSON_INT_ROUTER_LPC = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 0);
++
++	/* Enable UART and INT0 interrupts */
++	LOONGSON_INT_ROUTER_INTENSET = (0x1 << 10) | (1 << 0);
++
++	/* uart, keyboard, and mouse are active high */
++	(int_ctrl_regs + 0)->int_edge	= 0x00000000;
++	(int_ctrl_regs + 0)->int_pol	= 0xff7fffff;
++	(int_ctrl_regs + 0)->int_clr	= 0x00000000;
++	(int_ctrl_regs + 0)->int_en	= 0x00ffffff;
++
++	(int_ctrl_regs + 1)->int_edge	= 0x00000000;
++	(int_ctrl_regs + 1)->int_pol	= 0xfeffffff;
++	(int_ctrl_regs + 1)->int_clr	= 0x00000000;
++	(int_ctrl_regs + 1)->int_en	= 0x03ffffff;
++
++	(int_ctrl_regs + 2)->int_edge	= 0x00000000;
++	(int_ctrl_regs + 2)->int_pol	= 0xfffffffe;
++	(int_ctrl_regs + 2)->int_clr	= 0x00000000;
++	(int_ctrl_regs + 2)->int_en	= 0x00000001;
++
++	/* Enable the LPC interrupt */
++	ls2h_writel(0x80000000, LS2H_LPC_INT_CTL);
++
++	/* set the 18-bit interrpt enable bit for keyboard and mouse */
++	ls2h_writel(0x1 << 0x1 | 0x1 << 12, LS2H_LPC_INT_ENA);
++
++	/* clear all 18-bit interrpt bit */
++	ls2h_writel(0x3ffff, LS2H_LPC_INT_CLR);
++}
++
++void __init ls2h_init_irq(void)
++{
++	u32 i;
++
++	local_irq_disable();
++	ls2h_irq_router_init();
++
++	for (i = LS2H_PCH_IRQ_BASE; i <= LS2H_PCH_LAST_IRQ; i++)
++		irq_set_chip_and_handler(i, &pch_irq_chip,
++					 handle_level_irq);
++
++	/* added for KBC attached on LPC controler */
++	irq_set_chip_and_handler(1, &lpc_irq_chip, handle_level_irq);
++	irq_set_chip_and_handler(12, &lpc_irq_chip, handle_level_irq);
++}
+diff --git a/arch/mips/loongson64/loongson-3/ls2h-platform.c b/arch/mips/loongson64/loongson-3/ls2h-platform.c
+new file mode 100644
+index 00000000..c83c447b
+--- /dev/null
++++ b/arch/mips/loongson64/loongson-3/ls2h-platform.c
+@@ -0,0 +1,750 @@
++/*
++ *  Copyright (C) 2013, Loongson Technology Corporation Limited, Inc.
++ *
++ *  This program is free software; you can distribute it and/or modify it
++ *  under the terms of the GNU General Public License (Version 2) as
++ *  published by the Free Software Foundation.
++ *
++ *  This program is distributed in the hope it will be useful, but WITHOUT
++ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ *  for more details.
++ *
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/device.h>
++#include <linux/platform_device.h>
++#include <linux/resource.h>
++#include <linux/serial_8250.h>
++#include <linux/i2c.h>
++#include <linux/phy.h>
++#include <linux/types.h>
++#include <linux/pci.h>
++#include <linux/mtd/mtd.h>
++#include <linux/mtd/partitions.h>
++#include <linux/spi/spi.h>
++#include <linux/spi/flash.h>
++#include <linux/delay.h>
++#include <linux/stmmac.h>
++#include <linux/usb/ehci_pdriver.h>
++#include <linux/usb/ohci_pdriver.h>
++#include <asm/io.h>
++
++#include <irq.h>
++#include <pci.h>
++#include <boot_param.h>
++#include <loongson-pch.h>
++
++extern struct pci_ops ls2h_pcie_ops_port0;
++extern struct pci_ops ls2h_pcie_ops_port1;
++extern struct pci_ops ls2h_pcie_ops_port2;
++extern struct pci_ops ls2h_pcie_ops_port3;
++
++extern void ls2h_init_irq(void);
++extern void ls2h_irq_dispatch(void);
++extern int ls2h_platform_init(void);
++extern int ls2h_pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin);
++
++static u64 platform_dma_mask = DMA_BIT_MASK(32);
++
++/*
++ * UART
++ */
++struct plat_serial8250_port ls2h_uart8250_data[] = {
++	[0] = {
++		.mapbase = LS2H_UART0_REG_BASE,
++		.uartclk = 125000000,
++		.membase = (void *)CKSEG1ADDR(LS2H_UART0_REG_BASE),
++		.irq = LS2H_PCH_UART0_IRQ,
++		.flags = UPF_BOOT_AUTOCONF | UPF_SKIP_TEST,
++		.iotype = UPIO_MEM,
++		.regshift = 0,
++	},
++	[1] = {
++		.mapbase = LS2H_UART1_REG_BASE,
++		.uartclk = 125000000,
++		.membase = (void *)CKSEG1ADDR(LS2H_UART1_REG_BASE),
++		.irq = LS2H_PCH_UART1_IRQ,
++		.flags = UPF_BOOT_AUTOCONF | UPF_SKIP_TEST,
++		.iotype = UPIO_MEM,
++		.regshift = 0,
++	},
++	[2] = {
++		.mapbase = LS2H_UART2_REG_BASE,
++		.uartclk = 125000000,
++		.membase = (void *)CKSEG1ADDR(LS2H_UART2_REG_BASE),
++		.irq = LS2H_PCH_UART2_IRQ,
++		.flags = UPF_BOOT_AUTOCONF | UPF_SKIP_TEST,
++		.iotype = UPIO_MEM,
++		.regshift = 0,
++	},
++	[3] = {
++		.mapbase = LS2H_UART3_REG_BASE,
++		.uartclk = 125000000,
++		.membase = (void *)CKSEG1ADDR(LS2H_UART3_REG_BASE),
++		.irq = LS2H_PCH_UART3_IRQ,
++		.flags = UPF_BOOT_AUTOCONF | UPF_SKIP_TEST,
++		.iotype = UPIO_MEM,
++		.regshift = 0,
++	},
++	{}
++};
++
++static struct platform_device uart8250_device = {
++	.name = "serial8250",
++	.id = PLAT8250_DEV_PLATFORM1,
++	.dev = {
++		.platform_data = ls2h_uart8250_data,
++	}
++};
++
++/*
++ * NAND
++ */
++struct ls2h_nand_platform_data{
++	int enable_arbiter;
++	struct mtd_partition *parts;
++	unsigned int nr_parts;
++};
++
++static struct mtd_partition ls2h_nand_partitions[]={
++	[0] = {
++		.name   = "kernel",
++		.offset = 0,
++		.size   = 0x01400000,
++	},
++	[1] = {
++		.name   = "os",
++		.offset = 0x01400000,
++		.size   = 0x0,
++
++	},
++};
++
++static struct ls2h_nand_platform_data ls2h_nand_parts = {
++        .enable_arbiter = 1,
++        .parts          = ls2h_nand_partitions,
++        .nr_parts       = ARRAY_SIZE(ls2h_nand_partitions),
++
++};
++
++static struct resource ls2h_nand_resources[] = {
++	[0] = {
++		.start      = 0,
++		.end        = 0,
++		.flags      = IORESOURCE_DMA,
++	},
++	[1] = {
++		.start      = LS2H_NAND_REG_BASE,
++		.end        = LS2H_NAND_REG_BASE + 0x20,
++		.flags      = IORESOURCE_MEM,
++	},
++	[2] = {
++		.start      = LS2H_DMA_ORDER_REG,
++		.end        = LS2H_DMA_ORDER_REG,
++		.flags      = IORESOURCE_MEM,
++	},
++	[3] = {
++		.start      = LS2H_PCH_DMA0_IRQ,
++		.end        = LS2H_PCH_DMA0_IRQ,
++		.flags      = IORESOURCE_IRQ,
++	},
++};
++
++struct platform_device ls2h_nand_device = {
++	.name       = "ls2h-nand",
++	.id         = 0,
++	.dev        = {
++		.platform_data = &ls2h_nand_parts,
++	},
++	.num_resources  = ARRAY_SIZE(ls2h_nand_resources),
++	.resource       = ls2h_nand_resources,
++};
++
++/*
++ * OHCI
++ */
++static struct resource ls2h_ohci_resources[] = {
++	[0] = {
++		.start = LS2H_OHCI_REG_BASE,
++		.end   = (LS2H_OHCI_REG_BASE + 0x1000 - 1),
++		.flags = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start = LS2H_PCH_OHCI_IRQ,
++		.end   = LS2H_PCH_OHCI_IRQ,
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct usb_ohci_pdata ls2h_ohci_platform_data = {
++	.num_ports = 6,
++};
++
++static struct platform_device ls2h_ohci_device = {
++	.name           = "ohci-platform",
++	.id             = 0,
++	.dev = {
++		.platform_data	= &ls2h_ohci_platform_data,
++	},
++	.num_resources  = ARRAY_SIZE(ls2h_ohci_resources),
++	.resource       = ls2h_ohci_resources,
++};
++
++/*
++ * EHCI
++ */
++static struct resource ls2h_ehci_resources[] = {
++	[0] = {
++		.start = LS2H_EHCI_REG_BASE,
++		.end   = (LS2H_EHCI_REG_BASE + 0x100 - 1),
++		.flags = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start = LS2H_PCH_EHCI_IRQ,
++		.end   = LS2H_PCH_EHCI_IRQ,
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct usb_ehci_pdata ls2h_ehci_platform_data = {
++};
++
++static struct platform_device ls2h_ehci_device = {
++	.name	= "ehci-platform",
++	.id	= 0,
++	.dev	= {
++		.platform_data	= &ls2h_ehci_platform_data,
++	},
++	.num_resources  = ARRAY_SIZE(ls2h_ehci_resources),
++	.resource       = ls2h_ehci_resources,
++};
++
++/*
++ * PHY0
++ */
++static struct stmmac_mdio_bus_data phy0_plat_data = {
++	.phy_mask	= 0,
++};
++
++/*
++ * GMAC0
++ */
++static struct plat_stmmacenet_data gmac0_plat_dat = {
++	.bus_id		= 0,
++	.phy_addr	= 1,
++	.has_gmac	= 1,
++	.enh_desc	= 1,
++	.mdio_bus_data = &phy0_plat_data,
++};
++
++static struct resource ls2h_gmac0_resources[] = {
++	[0] = {
++		.start = LS2H_GMAC0_REG_BASE,
++		.end   = (LS2H_GMAC0_REG_BASE + 0x1000 - 1),
++		.flags = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start = LS2H_PCH_GMAC0_IRQ,
++		.end   = LS2H_PCH_GMAC0_IRQ,
++		.name  = "macirq",
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device ls2h_gmac0_device = {
++	.name	= "stmmaceth",
++	.id	= 0,
++	.dev	= {
++		.platform_data	= &gmac0_plat_dat,
++	},
++	.num_resources  = ARRAY_SIZE(ls2h_gmac0_resources),
++	.resource       = ls2h_gmac0_resources,
++};
++
++/*
++ * PHY1
++ */
++static struct stmmac_mdio_bus_data phy1_plat_data = {
++	.phy_mask	= 0,
++};
++
++/*
++ * GMAC1
++ */
++static struct plat_stmmacenet_data gmac1_plat_dat = {
++	.bus_id		= 1,
++	.phy_addr	= 1,
++	.has_gmac	= 1,
++	.enh_desc	= 1,
++	.mdio_bus_data = &phy1_plat_data,
++};
++
++static struct resource ls2h_gmac1_resources[] = {
++	[0] = {
++		.start = LS2H_GMAC1_REG_BASE,
++		.end   = (LS2H_GMAC1_REG_BASE + 0x1000 - 1),
++		.flags = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start = LS2H_PCH_GMAC1_IRQ,
++		.end   = LS2H_PCH_GMAC1_IRQ,
++		.name  = "macirq",
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device ls2h_gmac1_device = {
++	.name           = "stmmaceth",
++	.id             = 1,
++	.dev = {
++		.platform_data = &gmac1_plat_dat,
++	},
++	.num_resources  = ARRAY_SIZE(ls2h_gmac1_resources),
++	.resource       = ls2h_gmac1_resources,
++};
++
++/*
++ * AHCI
++ */
++static struct resource ls2h_ahci_resources[] = {
++	[0] = {
++		.start = LS2H_SATA_REG_BASE,
++		.end   = LS2H_SATA_REG_BASE + 0x1ff,
++		.flags = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start = LS2H_PCH_SATA_IRQ,
++		.end   = LS2H_PCH_SATA_IRQ,
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device ls2h_ahci_device = {
++	.name           = "ahci",
++	.id             = 0,
++	.num_resources  = ARRAY_SIZE(ls2h_ahci_resources),
++	.resource       = ls2h_ahci_resources,
++};
++
++/*
++ * RTC
++ */
++static struct resource ls2h_rtc_resources[] = {
++       [0] = {
++               .start  = LS2H_RTC_REG_BASE,
++               .end    = (LS2H_RTC_REG_BASE + 0xff),
++               .flags  = IORESOURCE_MEM,
++       },
++       [1] = {
++               .start  = LS2H_PCH_RTC_INT0_IRQ,
++               .end    = LS2H_PCH_TOY_TICK_IRQ,
++               .flags  = IORESOURCE_IRQ,
++       },
++};
++
++static struct platform_device ls2h_rtc_device = {
++       .name   = "ls2h-rtc",
++       .id     = 0,
++       .num_resources  = ARRAY_SIZE(ls2h_rtc_resources),
++       .resource       = ls2h_rtc_resources,
++};
++
++
++/*
++ * DC
++ */
++static struct resource ls2h_dc_resources[] = {
++	[0] = {
++		.start	= LS2H_DC_REG_BASE,
++		.end	= LS2H_DC_REG_BASE + 0x2000,
++		.flags	= IORESOURCE_MEM,
++	},
++	[1] = {
++		.start	= LS2H_PCH_DC_IRQ,
++		.end	= LS2H_PCH_DC_IRQ,
++		.flags	= IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device ls2h_dc_device = {
++	.name           = "ls2h-fb",
++	.id             = 0,
++	.num_resources	= ARRAY_SIZE(ls2h_dc_resources),
++	.resource	= ls2h_dc_resources,
++};
++
++/*
++ * HD Audio
++ */
++static struct resource ls2h_audio_resources[] = {
++	[0] = {
++		.start = LS2H_HDA_REG_BASE,
++		.end   = LS2H_HDA_REG_BASE + 0x17f,
++		.flags = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start = LS2H_PCH_HDA_IRQ,
++		.end   = LS2H_PCH_HDA_IRQ,
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device ls2h_audio_device = {
++	.name           = "ls2h-audio",
++	.id             = 0,
++	.num_resources  = ARRAY_SIZE(ls2h_audio_resources),
++	.resource       = ls2h_audio_resources,
++};
++
++/*
++ * I2C
++ */
++static struct resource ls2h_i2c0_resources[] = {
++	[0] = {
++		.start = LS2H_I2C0_REG_BASE,
++		.end   = LS2H_I2C0_REG_BASE + 0x8,
++		.flags = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start = LS2H_PCH_I2C0_IRQ,
++		.end   = LS2H_PCH_I2C0_IRQ,
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device ls2h_i2c0_device = {
++	.name           = "ls2h-i2c",
++	.id             = 0,
++	.num_resources  = ARRAY_SIZE(ls2h_i2c0_resources),
++	.resource       = ls2h_i2c0_resources,
++};
++
++static struct resource ls2h_i2c1_resources[] = {
++	[0] = {
++		.start = LS2H_I2C1_REG_BASE,
++		.end   = LS2H_I2C1_REG_BASE + 0x8,
++		.flags = IORESOURCE_MEM,
++	},
++	[1] = {
++		.start = LS2H_PCH_I2C1_IRQ,
++		.end   = LS2H_PCH_I2C1_IRQ,
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device ls2h_i2c1_device = {
++	.name           = "ls2h-i2c",
++	.id             = 1,
++	.num_resources  = ARRAY_SIZE(ls2h_i2c1_resources),
++	.resource       = ls2h_i2c1_resources,
++};
++
++/*
++ * GPU
++ */
++static struct resource ls2h_gpu_resources[] = {
++	[0] = {
++		.name	= "gpu_base",
++		.start	= LS2H_GPU_REG_BASE,
++		.end	= LS2H_GPU_REG_BASE + 0x7ff,
++		.flags	= IORESOURCE_MEM,
++	},
++	[1] = {
++		.name	= "gpu_irq",
++		.start	= LS2H_PCH_GPU_IRQ,
++		.end	= LS2H_PCH_GPU_IRQ,
++		.flags	= IORESOURCE_IRQ,
++	},
++	[2] = {
++		.name	= "gpu_mem",
++		.start	= 0xe0004000000,
++		.end	= 0xe000bffffff,
++		.flags	= IORESOURCE_MEM,
++	},
++};
++
++static struct platform_device ls2h_gpu_device = {
++	.name           = "galcore",
++	.id             = 0,
++	.num_resources  = ARRAY_SIZE(ls2h_gpu_resources),
++	.resource       = ls2h_gpu_resources,
++};
++
++/*
++ * OTG
++ */
++static struct resource ls2h_otg_resources[] = {
++	[0] = {
++		.start = LS2H_OTG_REG_BASE,
++		.end   = (LS2H_OTG_REG_BASE + 0x3ffff),
++		.flags = IORESOURCE_MEM,
++        },
++        [1] = {
++		.start = LS2H_PCH_OTG_IRQ,
++		.end   = LS2H_PCH_OTG_IRQ,
++		.flags = IORESOURCE_IRQ,
++	},
++};
++
++static struct platform_device ls2h_otg_device = {
++	.name           = "dwc2",
++	.id             = 0,
++	.num_resources  = ARRAY_SIZE(ls2h_otg_resources),
++	.resource       = ls2h_otg_resources,
++};
++
++static struct platform_device *ls2h_platform_devices[] = {
++	&uart8250_device,
++	&ls2h_i2c0_device,
++	&ls2h_i2c1_device,
++	&ls2h_nand_device,
++	&ls2h_ohci_device,
++	&ls2h_ehci_device,
++	&ls2h_gmac0_device,
++	&ls2h_gmac1_device,
++	&ls2h_ahci_device,
++	&ls2h_dc_device,
++	&ls2h_audio_device,
++	&ls2h_rtc_device,
++	&ls2h_gpu_device,
++	&ls2h_otg_device,
++};
++
++const struct i2c_board_info __initdata loongson_eep_info = {
++	I2C_BOARD_INFO("eeprom-loongson", 0x50),
++};
++
++/* PCI-E controller0 X4 can't use whole memory space */
++static struct resource ls2h_pcie_mem_resource0 = {
++	.name	= "LS2H PCIE0 MEM",
++	.flags	= IORESOURCE_MEM,
++};
++
++static struct resource ls2h_pcie_io_resource0 = {
++	.name	= "LS2H PCIE0 IO",
++	.start	= 0x100000,
++	.end	= 0x10ffff,
++	.flags	= IORESOURCE_IO,
++};
++
++static struct pci_controller ls2h_pcie_controller0 = {
++	.pci_ops	= &ls2h_pcie_ops_port0,
++	.io_resource	= &ls2h_pcie_io_resource0,
++	.mem_resource	= &ls2h_pcie_mem_resource0,
++	.mem_offset	= 0x00000000UL,
++	.io_offset	= 0x00000000UL,
++	.io_map_base	= 0x90000e0018000000UL,
++};
++
++/* PCI-E controller1 */
++static struct resource ls2h_pcie_mem_resource1 = {
++	.name	= "LS2H PCIE1 MEM",
++	.flags	= IORESOURCE_MEM,
++};
++
++static struct resource ls2h_pcie_io_resource1 = {
++	.name	= "LS2H PCIE1 IO",
++	.start	= 0x500000,
++	.end	= 0x50ffff,
++	.flags	= IORESOURCE_IO,
++};
++
++static struct pci_controller ls2h_pcie_controller1 = {
++	.pci_ops	= &ls2h_pcie_ops_port1,
++	.io_resource	= &ls2h_pcie_io_resource1,
++	.mem_resource	= &ls2h_pcie_mem_resource1,
++	.mem_offset	= 0x00000000UL,
++	.io_offset	= 0x00000000UL,
++	.io_map_base	= 0x90000e0018000000UL,
++};
++
++/* PCI-E controller2 */
++static struct resource ls2h_pcie_mem_resource2 = {
++	.name	= "LS2H PCIE2 MEM",
++	.flags	= IORESOURCE_MEM,
++};
++
++static struct resource ls2h_pcie_io_resource2 = {
++	.name	= "LS2H PCIE2 IO",
++	.start	= 0x900000,
++	.end	= 0x90ffff,
++	.flags	= IORESOURCE_IO,
++};
++
++static struct pci_controller ls2h_pcie_controller2 = {
++	.pci_ops	= &ls2h_pcie_ops_port2,
++	.io_resource	= &ls2h_pcie_io_resource2,
++	.mem_resource	= &ls2h_pcie_mem_resource2,
++	.mem_offset	= 0x00000000UL,
++	.io_offset	= 0x00000000UL,
++	.io_map_base	= 0x90000e0018000000UL,
++};
++
++/* PCI-E controller3 */
++static struct resource ls2h_pcie_mem_resource3 = {
++	.name	= "LS2H PCIE3 MEM",
++	.flags	= IORESOURCE_MEM,
++};
++
++static struct resource ls2h_pcie_io_resource3 = {
++	.name	= "LS2H PCIE3 IO",
++	.start	= 0xd00000,
++	.end	= 0xd0ffff,
++	.flags	= IORESOURCE_IO,
++};
++
++static struct pci_controller ls2h_pcie_controller3 = {
++	.pci_ops	= &ls2h_pcie_ops_port3,
++	.io_resource	= &ls2h_pcie_io_resource3,
++	.mem_resource	= &ls2h_pcie_mem_resource3,
++	.mem_offset	= 0x00000000UL,
++	.io_offset	= 0x00000000UL,
++	.io_map_base	= 0x90000e0018000000UL,
++};
++
++static void en_ref_clock(void)
++{
++	unsigned int data;
++
++	data = ls2h_readl(LS2H_CLK_CTRL3_REG);
++	data |= (LS2H_CLK_CTRL3_BIT_PEREF_EN(0)
++		 | LS2H_CLK_CTRL3_BIT_PEREF_EN(1)
++		 | LS2H_CLK_CTRL3_BIT_PEREF_EN(2)
++		 | LS2H_CLK_CTRL3_BIT_PEREF_EN(3));
++	ls2h_writel(data, LS2H_CLK_CTRL3_REG);
++}
++
++static int is_rc_mode(void)
++{
++	unsigned data;
++
++	data = ls2h_readl(LS2H_PCIE_PORT_REG_BASE(0)
++			| LS2H_PCIE_PORT_REG_CTR_STAT);
++
++	return data & LS2H_PCIE_REG_CTR_STAT_BIT_ISRC;
++}
++
++static int is_x4_mode(void)
++{
++	unsigned data;
++
++	data = ls2h_readl(LS2H_PCIE_PORT_REG_BASE(0)
++			| LS2H_PCIE_PORT_REG_CTR_STAT);
++
++	return data & LS2H_PCIE_REG_CTR_STAT_BIT_ISX4;
++}
++
++void ls2h_pcie_port_init(int port)
++{
++	unsigned reg, data;
++
++	reg = LS2H_PCIE_PORT_REG_BASE(port) | LS2H_PCIE_PORT_REG_CTR0;
++	ls2h_writel(0x00ff204c, reg);
++
++	reg = LS2H_PCIE_PORT_HEAD_BASE(port) | PCI_CLASS_REVISION;
++	data = (ls2h_readl(reg) & 0xffff) | (PCI_CLASS_BRIDGE_PCI << 16);
++	ls2h_writel(data, reg);
++
++	reg = LS2H_PCIE_PORT_HEAD_BASE(port) | LS2H_PCI_EXP_LNKCAP;
++	data = (ls2h_readl(reg) & (~0xf)) | 0x1;
++	ls2h_writel(data, reg);
++}
++
++static void ls2h_early_config(void)
++{
++	u32 val;
++
++	/*
++	 * Loongson-2H chip_config0: 0x1fd00200
++	 * bit[5]: 	Loongson-2H bridge mode,0: disable      1: enable
++	 * bit[4]:	ac97/hda select,	0: ac97		1: hda
++	 * bit[14]:	host/otg select,	0: host         1: otg
++	 * bit[26]:	usb reset,		0: enable       1: disable
++	 */
++	val = ls2h_readl(LS2H_CHIP_CFG0_REG);
++	ls2h_writel(val | (1 << 5) | (1 << 4) | (1 << 14) | (1 << 26), LS2H_CHIP_CFG0_REG);
++
++	val = ls2h_readl(LS2H_GPIO_OE_REG);
++	ls2h_writel(val | (1 << 0), LS2H_GPIO_OE_REG);
++
++	en_ref_clock();
++	pcie_bus_config = PCIE_BUS_PERFORMANCE;
++
++	if (is_rc_mode()) {
++		ls2h_pcie_port_init(0);
++		if (!is_x4_mode()) {
++			ls2h_pcie_port_init(1);
++			ls2h_pcie_port_init(2);
++			ls2h_pcie_port_init(3);
++		}
++	}
++}
++
++static void __init ls2h_arch_initcall(void)
++{
++	u64 pci_mem_size;
++
++	ioport_resource.end = 0xffffffff;
++	if (!loongson_sysconf.pci_mem_start_addr)
++		loongson_sysconf.pci_mem_start_addr = LOONGSON_PCI_MEM_START;
++	if (!loongson_sysconf.pci_mem_end_addr)
++		loongson_sysconf.pci_mem_end_addr = LOONGSON_PCI_MEM_START + 0x40000000UL - 1;
++	pci_mem_size = loongson_sysconf.pci_mem_end_addr - loongson_sysconf.pci_mem_start_addr + 1;
++
++	if (!is_rc_mode())
++		return;
++
++	if (is_x4_mode()) {
++		ls2h_pcie_mem_resource0.start = loongson_sysconf.pci_mem_start_addr;
++		ls2h_pcie_mem_resource0.end   = loongson_sysconf.pci_mem_start_addr + pci_mem_size - 1;
++		register_pci_controller(&ls2h_pcie_controller0);
++	} else {
++		ls2h_pcie_mem_resource0.start = loongson_sysconf.pci_mem_start_addr;
++		ls2h_pcie_mem_resource0.end   = loongson_sysconf.pci_mem_start_addr + pci_mem_size*1/4 - 1;
++		register_pci_controller(&ls2h_pcie_controller0);
++
++		ls2h_pcie_mem_resource1.start = loongson_sysconf.pci_mem_start_addr + pci_mem_size*1/4;;
++		ls2h_pcie_mem_resource1.end   = loongson_sysconf.pci_mem_start_addr + pci_mem_size*2/4 - 1;
++		register_pci_controller(&ls2h_pcie_controller1);
++
++		ls2h_pcie_mem_resource2.start = loongson_sysconf.pci_mem_start_addr + pci_mem_size*2/4;;
++		ls2h_pcie_mem_resource2.end   = loongson_sysconf.pci_mem_start_addr + pci_mem_size*3/4 - 1;
++		register_pci_controller(&ls2h_pcie_controller2);
++
++		ls2h_pcie_mem_resource3.start = loongson_sysconf.pci_mem_start_addr + pci_mem_size*3/4;;
++		ls2h_pcie_mem_resource3.end   = loongson_sysconf.pci_mem_start_addr + pci_mem_size*4/4 - 1;
++		register_pci_controller(&ls2h_pcie_controller3);
++	}
++}
++
++#define I2C_BUS_0 0
++#define I2C_BUS_1 1
++
++static void __init ls2h_device_initcall(void)
++{
++	int i;
++
++	i2c_register_board_info(I2C_BUS_1, &loongson_eep_info, 1);
++
++	platform_dma_mask = DMA_BIT_MASK(loongson_sysconf.dma_mask_bits);
++	for (i=0; i<ARRAY_SIZE(ls2h_platform_devices); i++) {
++		ls2h_platform_devices[i]->dev.dma_mask = &platform_dma_mask;
++		ls2h_platform_devices[i]->dev.coherent_dma_mask = platform_dma_mask;
++	}
++
++	platform_add_devices(ls2h_platform_devices,
++			ARRAY_SIZE(ls2h_platform_devices));
++}
++
++const struct platform_controller_hub ls2h_pch = {
++	.board_type		= LS2H,
++	.pcidev_max_funcs 	= 1,
++	.early_config		= ls2h_early_config,
++	.init_irq		= ls2h_init_irq,
++	.irq_dispatch		= ls2h_irq_dispatch,
++	.pcibios_map_irq	= ls2h_pcibios_map_irq,
++	.pch_arch_initcall	= ls2h_arch_initcall,
++	.pch_device_initcall	= ls2h_device_initcall,
++};
+diff --git a/arch/mips/loongson64/loongson-3/numa.c b/arch/mips/loongson64/loongson-3/numa.c
+index 250f58f1..8cb7a2ac 100644
+--- a/arch/mips/loongson64/loongson-3/numa.c
++++ b/arch/mips/loongson64/loongson-3/numa.c
+@@ -142,6 +142,9 @@ static void __init szmem(unsigned int node)
+
+ 		switch (mem_type) {
+ 		case SYSTEM_RAM_LOW:
++			if (node_id == 0)
++				loongson_sysconf.low_physmem_start =
++					loongson_memmap->map[i].mem_start;
+ 			start_pfn = ((node_id << 44) + mem_start) >> PAGE_SHIFT;
+ 			node_psize = (mem_size << 20) >> PAGE_SHIFT;
+ 			end_pfn  = start_pfn + node_psize;
+@@ -156,6 +159,9 @@ static void __init szmem(unsigned int node)
+ 				PFN_PHYS(end_pfn - start_pfn), node);
+ 			break;
+ 		case SYSTEM_RAM_HIGH:
++			if (node_id == 0)
++				loongson_sysconf.high_physmem_start =
++					loongson_memmap->map[i].mem_start;
+ 			start_pfn = ((node_id << 44) + mem_start) >> PAGE_SHIFT;
+ 			node_psize = (mem_size << 20) >> PAGE_SHIFT;
+ 			end_pfn  = start_pfn + node_psize;
+diff --git a/arch/mips/loongson64/loongson-3/platform.c b/arch/mips/loongson64/loongson-3/platform.c
+index 4f1486d1..38d0217d 100644
+--- a/arch/mips/loongson64/loongson-3/platform.c
++++ b/arch/mips/loongson64/loongson-3/platform.c
+@@ -17,9 +17,12 @@
+ #include <linux/platform_device.h>
+ #include <asm/bootinfo.h>
+ #include <boot_param.h>
++#include <loongson-pch.h>
+ #include <loongson_hwmon.h>
+ #include <workarounds.h>
+
++int hpet_enabled = 0;
++
+ /*
+  * Kernel helper policy
+  *
+@@ -85,6 +88,9 @@ static int __init loongson3_platform_init(void)
+ 	int i;
+ 	struct platform_device *pdev;
+
++	if (loongson_pch)
++		loongson_pch->pch_arch_initcall();
++
+ 	if (loongson_sysconf.ecname[0] != '\0')
+ 		platform_device_register_simple(loongson_sysconf.ecname, -1, NULL, 0);
+
+@@ -107,4 +113,13 @@ static int __init loongson3_platform_init(void)
+ 	return 0;
+ }
+
++static int __init loongson3_device_init(void)
++{
++	if (loongson_pch)
++		loongson_pch->pch_device_initcall();
++
++	return 0;
++}
++
+ arch_initcall(loongson3_platform_init);
++device_initcall(loongson3_device_init);
+diff --git a/arch/mips/loongson64/loongson-3/pm.c b/arch/mips/loongson64/loongson-3/pm.c
+index 93b74f7d..fe3dbf97 100644
+--- a/arch/mips/loongson64/loongson-3/pm.c
++++ b/arch/mips/loongson64/loongson-3/pm.c
+@@ -26,15 +26,17 @@
+
+ #include <loongson.h>
+ #include <ec_wpce775l.h>
++#include <loongson-pch.h>
+
+ #define I8042_CTR_KBDINT	0x01
+ #define I8042_CTR_KBDDIS	0x10
+ #define I8042_KBD_IRQ		1
+
+-extern void irq_router_init(void);
+ extern void acpi_sleep_prepare(void);
+ extern void acpi_sleep_complete(void);
+ extern void acpi_registers_setup(void);
++extern void ls2h_irq_router_init(void);
++extern void rs780_irq_router_init(void);
+
+ struct loongson_registers {
+ 	u32 config4;
+@@ -97,7 +99,8 @@ int wakeup_loongson(void)
+ void mach_suspend(suspend_state_t state)
+ {
+ 	if (state == PM_SUSPEND_MEM) {
+-		acpi_sleep_prepare();
++		if (loongson_pch->board_type != LS2H)
++			acpi_sleep_prepare();
+
+ 		if (cpu_has_ftlb) {
+ 			loongson_regs.config4 = read_c0_config4();
+@@ -140,8 +143,13 @@ void mach_resume(suspend_state_t state)
+ 			write_c0_pwfield(loongson_regs.pwfield);
+ 		}
+
+-		irq_router_init();
+-		acpi_registers_setup();
+-		acpi_sleep_complete();
++		loongson_pch->early_config();
++		if (loongson_pch->board_type == LS2H)
++			ls2h_irq_router_init();
++		else {
++			rs780_irq_router_init();
++			acpi_registers_setup();
++			acpi_sleep_complete();
++		}
+ 	}
+ }
+diff --git a/arch/mips/loongson64/loongson-3/rs780-irq.c b/arch/mips/loongson64/loongson-3/rs780-irq.c
+new file mode 100644
+index 00000000..81be6c61
+--- /dev/null
++++ b/arch/mips/loongson64/loongson-3/rs780-irq.c
+@@ -0,0 +1,78 @@
++#include <loongson.h>
++#include <irq.h>
++#include <linux/interrupt.h>
++#include <linux/module.h>
++
++#include <asm/irq_cpu.h>
++#include <asm/i8259.h>
++#include <asm/mipsregs.h>
++
++#include "smp.h"
++
++extern void loongson3_send_irq_by_ipi(int cpu, int irqs);
++
++unsigned int irq_cpu[16] = {[0 ... 15] = -1};
++unsigned int ht_irq[] = {0, 1, 3, 4, 5, 6, 7, 8, 12, 14, 15};
++unsigned int local_irq = 1<<0 | 1<<1 | 1<<2 | 1<<7 | 1<<8 | 1<<12;
++
++void rs780_irq_dispatch(void)
++{
++	unsigned int i, irq;
++	struct irq_data *irqd;
++	struct cpumask affinity;
++
++	irq = LOONGSON_HT1_INT_VECTOR(0);
++	LOONGSON_HT1_INT_VECTOR(0) = irq; /* Acknowledge the IRQs */
++
++	for (i = 0; i < ARRAY_SIZE(ht_irq); i++) {
++		if (!(irq & (0x1 << ht_irq[i])))
++			continue;
++
++		/* handled by local core */
++		if (local_irq & (0x1 << ht_irq[i])) {
++			do_IRQ(ht_irq[i]);
++			continue;
++		}
++
++		irqd = irq_get_irq_data(ht_irq[i]);
++		cpumask_and(&affinity, irqd->common->affinity, cpu_active_mask);
++		if (cpumask_empty(&affinity)) {
++			do_IRQ(ht_irq[i]);
++			continue;
++		}
++
++		irq_cpu[ht_irq[i]] = cpumask_next(irq_cpu[ht_irq[i]], &affinity);
++		if (irq_cpu[ht_irq[i]] >= nr_cpu_ids)
++			irq_cpu[ht_irq[i]] = cpumask_first(&affinity);
++
++		if (irq_cpu[ht_irq[i]] == 0) {
++			do_IRQ(ht_irq[i]);
++			continue;
++		}
++
++		/* balanced by other cores */
++		loongson3_send_irq_by_ipi(irq_cpu[ht_irq[i]], (0x1 << ht_irq[i]));
++	}
++}
++
++void rs780_irq_router_init(void)
++{
++	int i;
++
++	/* route LPC int to cpu core0 int 0 */
++	LOONGSON_INT_ROUTER_LPC = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 0);
++	/* route HT1 int0 ~ int7 to cpu core0 INT1*/
++	for (i = 0; i < 8; i++)
++		LOONGSON_INT_ROUTER_HT1(i) = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 1);
++	/* enable HT1 interrupt */
++	LOONGSON_HT1_INTN_EN(0) = 0xffffffff;
++	/* enable router interrupt intenset */
++	LOONGSON_INT_ROUTER_INTENSET =
++		LOONGSON_INT_ROUTER_INTEN | (0xffff << 16) | 0x1 << 10;
++}
++
++void __init rs780_init_irq(void)
++{
++	rs780_irq_router_init();
++	init_i8259_irqs();
++}
+diff --git a/arch/mips/loongson64/loongson-3/rs780-platform.c b/arch/mips/loongson64/loongson-3/rs780-platform.c
+new file mode 100644
+index 00000000..4ed54f37
+--- /dev/null
++++ b/arch/mips/loongson64/loongson-3/rs780-platform.c
+@@ -0,0 +1,46 @@
++/*
++ *  Copyright (C) 2013, Loongson Technology Corporation Limited, Inc.
++ *
++ *  This program is free software; you can distribute it and/or modify it
++ *  under the terms of the GNU General Public License (Version 2) as
++ *  published by the Free Software Foundation.
++ *
++ *  This program is distributed in the hope it will be useful, but WITHOUT
++ *  ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ *  FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++ *  for more details.
++ *
++ */
++#include <linux/init.h>
++#include <asm/io.h>
++#include <boot_param.h>
++#include <loongson-pch.h>
++
++extern void rs780_init_irq(void);
++extern void rs780_irq_dispatch(void);
++extern int ls2h_platform_init(void);
++
++extern int rs780_pcibios_map_irq(struct pci_dev *dev, u8 slot, u8 pin);
++
++static void rs780_early_config(void)
++{
++}
++
++static void __init rs780_arch_initcall(void)
++{
++}
++
++static void __init rs780_device_initcall(void)
++{
++}
++
++const struct platform_controller_hub rs780_pch = {
++	.board_type		= RS780E,
++	.pcidev_max_funcs 	= 7,
++	.early_config		= rs780_early_config,
++	.init_irq		= rs780_init_irq,
++	.irq_dispatch		= rs780_irq_dispatch,
++	.pcibios_map_irq	= rs780_pcibios_map_irq,
++	.pch_arch_initcall	= rs780_arch_initcall,
++	.pch_device_initcall	= rs780_device_initcall,
++};
+diff --git a/arch/mips/loongson64/loongson-3/sleep.S b/arch/mips/loongson64/loongson-3/sleep.S
+index 329c7a20..536968a7 100644
+--- a/arch/mips/loongson64/loongson-3/sleep.S
++++ b/arch/mips/loongson64/loongson-3/sleep.S
+@@ -121,8 +121,11 @@ flushL2_node:
+ 	addiu  a0, a0, -1
+ 	bnez   a0, flushL2_all
+
+-	ld  v0, loongson_suspend_addr /* Call BIOS's STR sleep routine */
+-	jr  v0
++	/* Pass RA and SP to BIOS, for machines without CMOS RAM */
++	daddi	a1, sp, 0
++	dla	a0, wakeup_start
++	ld      v0, loongson_suspend_addr /* Call BIOS's STR sleep routine */
++	jr      v0
+ 	nop
+ END(loongson_suspend_lowlevel)
+
+diff --git a/arch/mips/pci/Makefile b/arch/mips/pci/Makefile
+index 2eda01e6..75f2c311 100644
+--- a/arch/mips/pci/Makefile
++++ b/arch/mips/pci/Makefile
+@@ -30,7 +30,7 @@ obj-$(CONFIG_LASAT)		+= pci-lasat.o
+ obj-$(CONFIG_MIPS_COBALT)	+= fixup-cobalt.o
+ obj-$(CONFIG_LEMOTE_FULOONG2E)	+= fixup-fuloong2e.o ops-loongson2.o
+ obj-$(CONFIG_LEMOTE_MACH2F)	+= fixup-lemote2f.o ops-loongson2.o
+-obj-$(CONFIG_LOONGSON_MACH3X)	+= fixup-loongson3.o ops-loongson3.o
++obj-$(CONFIG_LOONGSON_MACH3X)	+= fixup-loongson3.o ops-loongson3-rs780.o ops-loongson3-ls2h.o
+ obj-$(CONFIG_MIPS_MALTA)	+= fixup-malta.o pci-malta.o
+ obj-$(CONFIG_PMC_MSP7120_GW)	+= fixup-pmcmsp.o ops-pmcmsp.o
+ obj-$(CONFIG_PMC_MSP7120_EVAL)	+= fixup-pmcmsp.o ops-pmcmsp.o
+diff --git a/arch/mips/pci/fixup-loongson3.c b/arch/mips/pci/fixup-loongson3.c
+index d708ae46..3ce70885 100644
+--- a/arch/mips/pci/fixup-loongson3.c
++++ b/arch/mips/pci/fixup-loongson3.c
+@@ -24,7 +24,10 @@
+  */
+
+ #include <linux/pci.h>
++#include <irq.h>
+ #include <boot_param.h>
++#include <workarounds.h>
++#include <loongson-pch.h>
+
+ static void print_fixup_info(const struct pci_dev *pdev)
+ {
+@@ -32,7 +35,7 @@ static void print_fixup_info(const struct pci_dev *pdev)
+ 			pdev->vendor, pdev->device, pdev->irq);
+ }
+
+-int __init pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
++int __init rs780_pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
+ {
+ 	print_fixup_info(dev);
+ 	return dev->irq;
+@@ -59,8 +62,22 @@ static void pci_fixup_radeon(struct pci_dev *pdev)
+ DECLARE_PCI_FIXUP_CLASS_FINAL(PCI_VENDOR_ID_ATI, PCI_ANY_ID,
+ 				PCI_CLASS_DISPLAY_VGA, 8, pci_fixup_radeon);
+
++int __init ls2h_pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
++{
++	return LS2H_PCH_PCIE_PORT0_IRQ + LS2H_PCIE_GET_PORTNUM(dev->sysdata);;
++}
++
++int __init pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
++{
++	return loongson_pch->pcibios_map_irq(dev, slot, pin);
++}
++
+ /* Do platform specific device initialization at pci_enable_device() time */
+ int pcibios_plat_dev_init(struct pci_dev *dev)
+ {
++	init_dma_attrs(&dev->dev.archdata.dma_attrs);
++	if (loongson_sysconf.workarounds & WORKAROUND_PCIE_DMA)
++		dma_set_attr(DMA_ATTR_FORCE_SWIOTLB, &dev->dev.archdata.dma_attrs);
++
+ 	return 0;
+ }
+diff --git a/arch/mips/pci/ops-loongson3-ls2h.c b/arch/mips/pci/ops-loongson3-ls2h.c
+new file mode 100644
+index 00000000..043516c5
+--- /dev/null
++++ b/arch/mips/pci/ops-loongson3-ls2h.c
+@@ -0,0 +1,237 @@
++/*
++ * ops-ls2hsoc.c
++ *
++ * Copyright (C) 2004 ICT CAS
++ * Author: Li xiaoyu, ICT CAS
++ *   lixy@ict.ac.cn
++ *
++ *  This program is free software; you can redistribute  it and/or modify it
++ *  under  the terms of  the GNU General  Public License as published by the
++ *  Free Software Foundation;  either version 2 of the  License, or (at your
++ *  option) any later version.
++ *
++ *  THIS  SOFTWARE  IS PROVIDED   ``AS  IS'' AND   ANY  EXPRESS OR IMPLIED
++ *  WARRANTIES,   INCLUDING, BUT NOT  LIMITED  TO, THE IMPLIED WARRANTIES OF
++ *  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN
++ *  NO  EVENT  SHALL   THE AUTHOR  BE    LIABLE FOR ANY   DIRECT, INDIRECT,
++ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ *  NOT LIMITED   TO, PROCUREMENT OF  SUBSTITUTE GOODS  OR SERVICES; LOSS OF
++ *  USE, DATA,  OR PROFITS; OR  BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
++ *  ANY THEORY OF LIABILITY, WHETHER IN  CONTRACT, STRICT LIABILITY, OR TORT
++ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++ *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ *  You should have received a copy of the  GNU General Public License along
++ *  with this program; if not, write  to the Free Software Foundation, Inc.,
++ *  675 Mass Ave, Cambridge, MA 02139, USA.
++ *
++ */
++#include <linux/types.h>
++#include <linux/pci.h>
++#include <linux/kernel.h>
++
++#include <loongson-pch.h>
++
++#define PCI_ACCESS_READ  0
++#define PCI_ACCESS_WRITE 1
++
++static int is_link_up(u8 port)
++{
++	u32 reg, data;
++
++	reg = LS2H_PCIE_PORT_REG_BASE(port) | LS2H_PCIE_PORT_REG_STAT1;
++	data = ls2h_readl(reg);
++
++	return data & LS2H_PCIE_REG_STAT1_BIT_LINKUP;
++}
++
++static int ls2h_pci_config_access(unsigned char access_type,
++				  struct pci_bus *bus, unsigned int devfn,
++				  int where, u32 *data, unsigned char portnum)
++{
++	unsigned char busnum = bus->number;
++	u_int32_t addr, type;
++	u_int32_t addr_i, cfg_addr;
++	int device = devfn >> 3;
++	int function = devfn & 0x7;
++	int reg = where & ~3;
++
++	if (portnum > LS2H_PCIE_MAX_PORTNUM)
++		return PCIBIOS_DEVICE_NOT_FOUND;
++
++	if (!bus->parent) {
++		/* in-chip virtual-bus has no parent,
++		 * so access is routed to PORT_HEAD
++		 */
++		if (device > 0 || function > 0) {
++			*data = -1;
++			return PCIBIOS_DEVICE_NOT_FOUND;
++		} else {
++			addr = LS2H_PCIE_PORT_HEAD_BASE(portnum) | reg;
++			if (reg == PCI_BASE_ADDRESS_0)
++				/* the default value of PCI_BASE_ADDRESS_0 of
++				 * PORT_HEAD is wrong, use PCI_BASE_ADDESS_1 instead
++				 */
++				addr += 4;
++		}
++	} else {
++		if (busnum > 255 || device > 31 || function > 1
++				|| !is_link_up(portnum)) {
++			*data = -1;
++			return PCIBIOS_DEVICE_NOT_FOUND;
++		}
++
++		if (!bus->parent->parent) {
++			/* the bus is child of virtual-bus(pcie slot),
++			 * so use Type 0 access for device on it
++			 */
++			if (device > 0) {
++				*data = -1;
++				return PCIBIOS_DEVICE_NOT_FOUND;
++			}
++			type = 0;
++		} else {
++			/* the bus is emitted from offboard-bridge,
++			 * so use Type 1 access for device on it
++			 */
++			type = 1;
++		}
++
++		/* write busnum/devnum/funcnum/type into PCIE_REG_BASE + 0x24 */
++		addr_i = LS2H_PCIE_PORT_REG_BASE(portnum)
++				| LS2H_PCIE_PORT_REG_CFGADDR;
++		cfg_addr = (busnum << 16) | (device << 11)
++				| (function << 8) | type;
++		ls2h_writel(cfg_addr, addr_i);
++
++		/* access mapping memory instead of direct configuration access */
++		addr = LS2H_PCIE_DEV_HEAD_BASE(portnum) | reg;
++	}
++
++	if (access_type == PCI_ACCESS_WRITE)
++		ls2h_writel(*data, addr);
++	else
++		*data = ls2h_readl(addr);
++
++	return PCIBIOS_SUCCESSFUL;
++}
++
++static int ls2h_pcibios_read_port(struct pci_bus *bus, unsigned int devfn,
++				       int where, int size, u32 * val, u8 port)
++{
++	u32 data = 0;
++
++	if (ls2h_pci_config_access(PCI_ACCESS_READ, bus, devfn, where,
++				&data, port))
++		return PCIBIOS_DEVICE_NOT_FOUND;
++
++	if (size == 1)
++		*val = (data >> ((where & 3) << 3)) & 0xff;
++	else if (size == 2)
++		*val = (data >> ((where & 3) << 3)) & 0xffff;
++	else
++		*val = data;
++
++	return PCIBIOS_SUCCESSFUL;
++}
++
++static int ls2h_pcibios_write_port(struct pci_bus *bus, unsigned int devfn,
++					int where, int size, u32 val, u8 port)
++{
++	u32 data = 0;
++
++	if (size == 4)
++		data = val;
++	else {
++		if (ls2h_pci_config_access(PCI_ACCESS_READ, bus, devfn, where,
++					&data, port))
++			return PCIBIOS_DEVICE_NOT_FOUND;
++
++		if (size == 1)
++			data = (data & ~(0xff << ((where & 3) << 3))) |
++			    (val << ((where & 3) << 3));
++		else if (size == 2)
++			data = (data & ~(0xffff << ((where & 3) << 3))) |
++			    (val << ((where & 3) << 3));
++	}
++
++	if (ls2h_pci_config_access(PCI_ACCESS_WRITE, bus, devfn, where,
++				&data, port))
++		return PCIBIOS_DEVICE_NOT_FOUND;
++
++	return PCIBIOS_SUCCESSFUL;
++}
++
++static int ls2h_pci_pcibios_read_port0(struct pci_bus *bus, unsigned int devfn,
++				       int where, int size, u32 *val)
++{
++	return ls2h_pcibios_read_port(bus, devfn, where, size,
++			val, LS2H_PCIE_PORT0);
++}
++
++static int ls2h_pci_pcibios_write_port0(struct pci_bus *bus, unsigned int devfn,
++					int where, int size, u32 val)
++{
++	return ls2h_pcibios_write_port(bus, devfn, where, size,
++			val, LS2H_PCIE_PORT0);
++}
++
++static int ls2h_pci_pcibios_read_port1(struct pci_bus *bus, unsigned int devfn,
++				       int where, int size, u32 *val)
++{
++	return ls2h_pcibios_read_port(bus, devfn, where, size,
++			val, LS2H_PCIE_PORT1);
++}
++
++static int ls2h_pci_pcibios_write_port1(struct pci_bus *bus, unsigned int devfn,
++					int where, int size, u32 val)
++{
++	return ls2h_pcibios_write_port(bus, devfn, where, size,
++			val, LS2H_PCIE_PORT1);
++}
++static int ls2h_pci_pcibios_read_port2(struct pci_bus *bus, unsigned int devfn,
++				       int where, int size, u32 *val)
++{
++	return ls2h_pcibios_read_port(bus, devfn, where, size,
++			val, LS2H_PCIE_PORT2);
++}
++
++static int ls2h_pci_pcibios_write_port2(struct pci_bus *bus, unsigned int devfn,
++					int where, int size, u32 val)
++{
++	return ls2h_pcibios_write_port(bus, devfn, where, size,
++			val, LS2H_PCIE_PORT2);
++}
++static int ls2h_pci_pcibios_read_port3(struct pci_bus *bus, unsigned int devfn,
++				       int where, int size, u32 *val)
++{
++	return ls2h_pcibios_read_port(bus, devfn, where, size,
++			val, LS2H_PCIE_PORT3);
++}
++
++static int ls2h_pci_pcibios_write_port3(struct pci_bus *bus, unsigned int devfn,
++					int where, int size, u32 val)
++{
++	return ls2h_pcibios_write_port(bus, devfn, where, size,
++			val, LS2H_PCIE_PORT3);
++}
++
++struct pci_ops ls2h_pcie_ops_port0 = {
++	.read	= ls2h_pci_pcibios_read_port0,
++	.write	= ls2h_pci_pcibios_write_port0
++};
++
++struct pci_ops ls2h_pcie_ops_port1 = {
++	.read	= ls2h_pci_pcibios_read_port1,
++	.write	= ls2h_pci_pcibios_write_port1
++};
++
++struct pci_ops ls2h_pcie_ops_port2 = {
++	.read	= ls2h_pci_pcibios_read_port2,
++	.write	= ls2h_pci_pcibios_write_port2
++};
++
++struct pci_ops ls2h_pcie_ops_port3 = {
++	.read	= ls2h_pci_pcibios_read_port3,
++	.write	= ls2h_pci_pcibios_write_port3
++};
+diff --git a/arch/mips/pci/ops-loongson3.c b/arch/mips/pci/ops-loongson3-rs780.c
+similarity index 79%
+rename from arch/mips/pci/ops-loongson3.c
+rename to arch/mips/pci/ops-loongson3-rs780.c
+index 46ed541a..8af65ea5 100644
+--- a/arch/mips/pci/ops-loongson3.c
++++ b/arch/mips/pci/ops-loongson3-rs780.c
+@@ -12,7 +12,7 @@
+ #define HT1LO_PCICFG_BASE      0x1a000000
+ #define HT1LO_PCICFG_BASE_TP1  0x1b000000
+
+-static int loongson3_pci_config_access(unsigned char access_type,
++static int rs780_pci_config_access(unsigned char access_type,
+ 		struct pci_bus *bus, unsigned int devfn,
+ 		int where, u32 *data)
+ {
+@@ -47,11 +47,11 @@ static int loongson3_pci_config_access(unsigned char access_type,
+ 	return PCIBIOS_SUCCESSFUL;
+ }
+
+-static int loongson3_pci_pcibios_read(struct pci_bus *bus, unsigned int devfn,
++static int rs780_pci_pcibios_read(struct pci_bus *bus, unsigned int devfn,
+ 				 int where, int size, u32 *val)
+ {
+ 	u32 data = 0;
+-	int ret = loongson3_pci_config_access(PCI_ACCESS_READ,
++	int ret = rs780_pci_config_access(PCI_ACCESS_READ,
+ 			bus, devfn, where, &data);
+
+ 	if (ret != PCIBIOS_SUCCESSFUL)
+@@ -67,7 +67,7 @@ static int loongson3_pci_pcibios_read(struct pci_bus *bus, unsigned int devfn,
+ 	return PCIBIOS_SUCCESSFUL;
+ }
+
+-static int loongson3_pci_pcibios_write(struct pci_bus *bus, unsigned int devfn,
++static int rs780_pci_pcibios_write(struct pci_bus *bus, unsigned int devfn,
+ 				  int where, int size, u32 val)
+ {
+ 	u32 data = 0;
+@@ -76,7 +76,7 @@ static int loongson3_pci_pcibios_write(struct pci_bus *bus, unsigned int devfn,
+ 	if (size == 4)
+ 		data = val;
+ 	else {
+-		ret = loongson3_pci_config_access(PCI_ACCESS_READ,
++		ret = rs780_pci_config_access(PCI_ACCESS_READ,
+ 				bus, devfn, where, &data);
+ 		if (ret != PCIBIOS_SUCCESSFUL)
+ 			return ret;
+@@ -89,13 +89,13 @@ static int loongson3_pci_pcibios_write(struct pci_bus *bus, unsigned int devfn,
+ 			    (val << ((where & 3) << 3));
+ 	}
+
+-	ret = loongson3_pci_config_access(PCI_ACCESS_WRITE,
++	ret = rs780_pci_config_access(PCI_ACCESS_WRITE,
+ 			bus, devfn, where, &data);
+
+ 	return ret;
+ }
+
+ struct pci_ops loongson_pci_ops = {
+-	.read = loongson3_pci_pcibios_read,
+-	.write = loongson3_pci_pcibios_write
++	.read = rs780_pci_pcibios_read,
++	.write = rs780_pci_pcibios_write
+ };
+diff --git a/arch/mips/pci/pci.c b/arch/mips/pci/pci.c
+index b8a0bf57..fa2f32fd 100644
+--- a/arch/mips/pci/pci-legacy.c
++++ b/arch/mips/pci/pci-legacy.c
+@@ -116,8 +116,12 @@ static void pcibios_scanbus(struct pci_controller *hose)
+ 	if (pci_has_flag(PCI_PROBE_ONLY)) {
+ 	  pci_bus_claim_resources(bus);
+ 	} else {
++		struct pci_bus *child;
++
+ 		pci_bus_size_bridges(bus);
+ 		pci_bus_assign_resources(bus);
++		list_for_each_entry(child, &bus->children, node)
++			pcie_bus_configure_settings(child);
+ 	}
+ 	pci_bus_add_devices(bus);
+ }
+diff --git a/drivers/cpufreq/loongson3_cpufreq.c b/drivers/cpufreq/loongson3_cpufreq.c
+index 5e1a1f4b..97c6c367 100644
+--- a/drivers/cpufreq/loongson3_cpufreq.c
++++ b/drivers/cpufreq/loongson3_cpufreq.c
+@@ -194,6 +194,10 @@ EXPORT_SYMBOL_GPL(loongson3_cpu_wait);
+ static int __init cpufreq_init(void)
+ {
+ 	int i, ret;
++	extern int hpet_enabled;
++
++	if (!hpet_enabled)
++		return -ENODEV;
+
+ 	/* Register platform stuff */
+ 	ret = platform_driver_register(&platform_driver);
+diff --git a/drivers/i2c/busses/Kconfig b/drivers/i2c/busses/Kconfig
+index 7b0aa82e..48612b00 100644
+--- a/drivers/i2c/busses/Kconfig
++++ b/drivers/i2c/busses/Kconfig
+@@ -710,6 +710,14 @@ config I2C_OMAP
+ 	  Like OMAP1510/1610/1710/5912 and OMAP242x.
+ 	  For details see http://www.ti.com/omap.
+
++config I2C_LS2H
++	tristate "Loongson-2H I2C adapter"
++	depends on CPU_LOONGSON3
++	help
++	  If you say yes to this option, support will be included for the
++	  I2C interface on the Loongson-2H Platform-Bridge.
++drivers/mtd/nand/Kconfig
++
+ config I2C_PASEMI
+ 	tristate "PA Semi SMBus interface"
+ 	depends on PPC_PASEMI && PCI
+diff --git a/drivers/i2c/busses/Makefile b/drivers/i2c/busses/Makefile
+index 37f2819b..4ca7a14e 100644
+--- a/drivers/i2c/busses/Makefile
++++ b/drivers/i2c/busses/Makefile
+@@ -68,6 +68,7 @@ obj-$(CONFIG_I2C_MXS)		+= i2c-mxs.o
+ obj-$(CONFIG_I2C_NOMADIK)	+= i2c-nomadik.o
+ obj-$(CONFIG_I2C_OCORES)	+= i2c-ocores.o
+ obj-$(CONFIG_I2C_OMAP)		+= i2c-omap.o
++obj-$(CONFIG_I2C_LS2H)		+= i2c-ls2h.o
+ obj-$(CONFIG_I2C_PASEMI)	+= i2c-pasemi.o
+ obj-$(CONFIG_I2C_PCA_PLATFORM)	+= i2c-pca-platform.o
+ obj-$(CONFIG_I2C_PMCMSP)	+= i2c-pmcmsp.o
+diff --git a/drivers/i2c/busses/i2c-ls2h.c b/drivers/i2c/busses/i2c-ls2h.c
+new file mode 100644
+index 00000000..a8c2a36b
+--- /dev/null
++++ b/drivers/i2c/busses/i2c-ls2h.c
+@@ -0,0 +1,348 @@
++/*
++ * Loongson-2H I2C master mode driver
++ *
++ * Copyright (C) 2013 Loongson Technology Corporation Limited
++ *
++ * Originally written by liushaozong
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
++ */
++
++#include <linux/module.h>
++#include <linux/delay.h>
++#include <linux/i2c.h>
++#include <linux/err.h>
++#include <linux/interrupt.h>
++#include <linux/completion.h>
++#include <linux/platform_device.h>
++#include <linux/clk.h>
++#include <linux/io.h>
++#include <linux/slab.h>
++#include <loongson-pch.h>
++
++#define LS2H_I2C_PRER_LO_REG	0x0
++#define LS2H_I2C_PRER_HI_REG	0x1
++#define LS2H_I2C_CTR_REG    	0x2
++#define LS2H_I2C_TXR_REG    	0x3
++#define LS2H_I2C_RXR_REG    	0x3
++#define LS2H_I2C_CR_REG     	0x4
++#define LS2H_I2C_SR_REG     	0x4
++
++#define ls2h_i2c_readb(addr)		readb(dev->base + addr)
++#define ls2h_i2c_writeb(val, addr)	writeb(val, dev->base + addr)
++
++#ifdef LS2H_I2C_DEBUG
++#define ls2h_i2c_debug(fmt, args...)	printk(KERN_CRIT fmt, ##args)
++#else
++#define ls2h_i2c_debug(fmt, args...)
++#endif
++
++struct ls2h_i2c_dev {
++	spinlock_t		lock;
++	unsigned int		suspended:1;
++	struct device		*dev;
++	void __iomem		*base;
++	int			irq;
++	struct completion	cmd_complete;
++	struct resource		*ioarea;
++	struct i2c_adapter	adapter;
++};
++
++static void ls2h_i2c_stop(struct ls2h_i2c_dev *dev)
++{
++again:
++        ls2h_i2c_writeb(CR_STOP, LS2H_I2C_CR_REG);
++        ls2h_i2c_readb(LS2H_I2C_SR_REG);
++        while (ls2h_i2c_readb(LS2H_I2C_SR_REG) & SR_BUSY)
++                goto again;
++}
++
++static int ls2h_i2c_start(struct ls2h_i2c_dev *dev,
++		int dev_addr, int flags)
++{
++	int retry = 5;
++	unsigned char addr = (dev_addr & 0x7f) << 1;
++	addr |= (flags & I2C_M_RD)? 1:0;
++
++start:
++	mdelay(1);
++	ls2h_i2c_writeb(addr, LS2H_I2C_TXR_REG);
++	ls2h_i2c_debug("%s <line%d>: i2c device address: 0x%x\n",
++			__func__, __LINE__, addr);
++	ls2h_i2c_writeb((CR_START | CR_WRITE), LS2H_I2C_CR_REG);
++	while (ls2h_i2c_readb(LS2H_I2C_SR_REG) & SR_TIP) ;
++
++	if (ls2h_i2c_readb(LS2H_I2C_SR_REG) & SR_NOACK) {
++		ls2h_i2c_stop(dev);
++		while (retry--)
++			goto start;
++		pr_info("There is no i2c device ack\n");
++		return 0;
++	}
++	return 1;
++}
++
++static void ls2h_i2c_init(struct ls2h_i2c_dev *dev)
++{
++        ls2h_i2c_writeb(0, LS2H_I2C_CTR_REG);
++        ls2h_i2c_writeb(0x2c, LS2H_I2C_PRER_LO_REG);
++        ls2h_i2c_writeb(0x1, LS2H_I2C_PRER_HI_REG);
++        ls2h_i2c_writeb(0x80, LS2H_I2C_CTR_REG);
++}
++
++static int ls2h_i2c_read(struct ls2h_i2c_dev *dev,
++		unsigned char *buf, int count)
++{
++	int i;
++
++	for (i = 0; i < count; i++) {
++		ls2h_i2c_writeb((i == count - 1)?
++				(CR_READ | CR_ACK) : CR_READ,
++				LS2H_I2C_CR_REG);
++		while (ls2h_i2c_readb(LS2H_I2C_SR_REG) & SR_TIP) ;
++		buf[i] = ls2h_i2c_readb(LS2H_I2C_RXR_REG);
++		ls2h_i2c_debug("%s <line%d>: read buf[%d] <= %02x\n",
++				__func__, __LINE__, i, buf[i]);
++        }
++
++        return i;
++}
++
++static int ls2h_i2c_write(struct ls2h_i2c_dev *dev,
++		unsigned char *buf, int count)
++{
++        int i;
++
++        for (i = 0; i < count; i++) {
++		ls2h_i2c_writeb(buf[i], LS2H_I2C_TXR_REG);
++		ls2h_i2c_debug("%s <line%d>: write buf[%d] => %02x\n",
++				__func__, __LINE__, i, buf[i]);
++		ls2h_i2c_writeb(CR_WRITE, LS2H_I2C_CR_REG);
++		while (ls2h_i2c_readb(LS2H_I2C_SR_REG) & SR_TIP) ;
++
++		if (ls2h_i2c_readb(LS2H_I2C_SR_REG) & SR_NOACK) {
++			ls2h_i2c_debug("%s <line%d>: device no ack\n",
++					__func__, __LINE__);
++			ls2h_i2c_stop(dev);
++			return 0;
++		}
++        }
++
++        return i;
++}
++
++static int ls2h_i2c_doxfer(struct ls2h_i2c_dev *dev,
++		struct i2c_msg *msgs, int num)
++{
++	struct i2c_msg *m = msgs;
++	unsigned long flags;
++	int i;
++
++	spin_lock_irqsave(&dev->lock, flags);
++	for(i = 0; i < num; i++) {
++		if (!ls2h_i2c_start(dev, m->addr, m->flags)) {
++			spin_unlock_irqrestore(&dev->lock, flags);
++			return 0;
++		}
++		if (m->flags & I2C_M_RD)
++			ls2h_i2c_read(dev, m->buf, m->len);
++		else
++			ls2h_i2c_write(dev, m->buf, m->len);
++		++m;
++	}
++
++	ls2h_i2c_stop(dev);
++	spin_unlock_irqrestore(&dev->lock, flags);
++
++	return i;
++}
++
++static int ls2h_i2c_xfer(struct i2c_adapter *adap,
++                        struct i2c_msg *msgs, int num)
++{
++	int ret;
++	int retry;
++	struct ls2h_i2c_dev *dev;
++
++	dev = i2c_get_adapdata(adap);
++	for (retry = 0; retry < adap->retries; retry++) {
++		ret = ls2h_i2c_doxfer(dev, msgs, num);
++		if (ret != -EAGAIN)
++			return ret;
++
++		udelay(100);
++	}
++
++	return -EREMOTEIO;
++}
++
++static unsigned int ls2h_i2c_func(struct i2c_adapter *adap)
++{
++	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
++}
++
++static const struct i2c_algorithm ls2h_i2c_algo = {
++	.master_xfer	= ls2h_i2c_xfer,
++	.functionality	= ls2h_i2c_func,
++};
++
++static int ls2h_i2c_probe(struct platform_device *pdev)
++{
++	struct ls2h_i2c_dev	*dev;
++	struct i2c_adapter	*adap;
++	struct resource		*mem, *irq, *ioarea;
++	int r;
++
++	/* NOTE: driver uses the static register mapping */
++	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (!mem) {
++		dev_err(&pdev->dev, "no mem resource?\n");
++		return -ENODEV;
++	}
++	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
++	if (!irq) {
++		dev_err(&pdev->dev, "no irq resource?\n");
++		return -ENODEV;
++	}
++
++	ioarea = request_mem_region(mem->start, resource_size(mem),
++			pdev->name);
++	if (!ioarea) {
++		dev_err(&pdev->dev, "I2C region already claimed\n");
++		return -EBUSY;
++	}
++
++	dev = kzalloc(sizeof(struct ls2h_i2c_dev), GFP_KERNEL);
++	if (!dev) {
++		r = -ENOMEM;
++		goto err_release_region;
++	}
++
++	spin_lock_init(&dev->lock);
++	dev->dev = &pdev->dev;
++	dev->irq = irq->start;
++	dev->base = ioremap(mem->start, resource_size(mem));
++	if (!dev->base) {
++		r = -ENOMEM;
++		goto err_free_mem;
++	}
++
++	platform_set_drvdata(pdev, dev);
++
++	ls2h_i2c_init(dev);
++
++	adap = &dev->adapter;
++	i2c_set_adapdata(adap, dev);
++	adap->owner = THIS_MODULE;
++	adap->class = I2C_CLASS_HWMON;
++	adap->retries = 5;
++	strlcpy(adap->name, "LS2H I2C adapter", sizeof(adap->name));
++	adap->algo = &ls2h_i2c_algo;
++	adap->dev.parent = &pdev->dev;
++
++	/* i2c device drivers may be active on return from add_adapter() */
++	adap->nr = pdev->id;
++	r = i2c_add_numbered_adapter(adap);
++	if (r) {
++		dev_err(dev->dev, "failure adding adapter\n");
++		goto err_iounmap;
++	}
++
++	return 0;
++
++err_iounmap:
++	iounmap(dev->base);
++err_free_mem:
++	platform_set_drvdata(pdev, NULL);
++	kfree(dev);
++err_release_region:
++	release_mem_region(mem->start, resource_size(mem));
++
++	return r;
++}
++
++static int ls2h_i2c_remove(struct platform_device *pdev)
++{
++	struct ls2h_i2c_dev	*dev = platform_get_drvdata(pdev);
++	struct resource		*mem;
++
++	platform_set_drvdata(pdev, NULL);
++	i2c_del_adapter(&dev->adapter);
++	iounmap(dev->base);
++	kfree(dev);
++	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	release_mem_region(mem->start, resource_size(mem));
++	return 0;
++}
++
++#ifdef CONFIG_PM
++static int ls2h_i2c_suspend_noirq(struct device *dev)
++{
++	struct platform_device *pdev = to_platform_device(dev);
++	struct ls2h_i2c_dev *i2c_dev = platform_get_drvdata(pdev);
++
++	i2c_dev->suspended = 1;
++
++	return 0;
++}
++
++static int ls2h_i2c_resume(struct device *dev)
++{
++	struct platform_device *pdev = to_platform_device(dev);
++	struct ls2h_i2c_dev *i2c_dev = platform_get_drvdata(pdev);
++
++	i2c_dev->suspended = 0;
++	ls2h_i2c_init(i2c_dev);
++
++	return 0;
++}
++
++static const struct dev_pm_ops ls2h_i2c_dev_pm_ops = {
++	.suspend_noirq	= ls2h_i2c_suspend_noirq,
++	.resume		= ls2h_i2c_resume,
++};
++
++#define LS2H_DEV_PM_OPS (&ls2h_i2c_dev_pm_ops)
++#else
++#define LS2H_DEV_PM_OPS NULL
++#endif
++
++static struct platform_driver ls2h_i2c_driver = {
++	.probe		= ls2h_i2c_probe,
++	.remove		= ls2h_i2c_remove,
++	.driver		= {
++		.name	= "ls2h-i2c",
++		.owner	= THIS_MODULE,
++		.pm	= LS2H_DEV_PM_OPS,
++	},
++};
++
++static int __init ls2h_i2c_init_driver(void)
++{
++	return platform_driver_register(&ls2h_i2c_driver);
++}
++subsys_initcall(ls2h_i2c_init_driver);
++
++static void __exit ls2h_i2c_exit_driver(void)
++{
++	platform_driver_unregister(&ls2h_i2c_driver);
++}
++
++module_exit(ls2h_i2c_exit_driver);
++
++MODULE_AUTHOR("Loongson Technology Corporation Limited");
++MODULE_DESCRIPTION("LOONGSON-2H I2C bus adapter");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:ls2h-i2c");
+diff --git a/drivers/mtd/nand/Kconfig b/drivers/mtd/nand/Kconfig
+index 28966408..e4f1806e 100644
+--- a/drivers/mtd/nand/Kconfig
++++ b/drivers/mtd/nand/Kconfig
+@@ -86,6 +86,12 @@ config MTD_NAND_AMS_DELTA
+ 	help
+ 	  Support for NAND flash on Amstrad E3 (Delta).
+
++config MTD_NAND_LS2H
++	tristate "NAND Flash device on Loongson-2H"
++	depends on CPU_LOONGSON3
++	help
++          Support for NAND flash on Loongson-2H Platform-Bridge.
++
+ config MTD_NAND_OMAP2
+ 	tristate "NAND Flash device on OMAP2, OMAP3, OMAP4 and Keystone"
+ 	depends on (ARCH_OMAP2PLUS || ARCH_KEYSTONE)
+diff --git a/drivers/mtd/nand/Makefile b/drivers/mtd/nand/Makefile
+index 2c7f014b..52ab3381 100644
+--- a/drivers/mtd/nand/Makefile
++++ b/drivers/mtd/nand/Makefile
+@@ -29,6 +29,7 @@ obj-$(CONFIG_MTD_NAND_GPIO)		+= gpio.o
+ omap2_nand-objs := omap2.o
+ obj-$(CONFIG_MTD_NAND_OMAP2) 		+= omap2_nand.o
+ obj-$(CONFIG_MTD_NAND_OMAP_BCH_BUILD)	+= omap_elm.o
++obj-$(CONFIG_MTD_NAND_LS2H) 		+= ls2h_nand.o
+ obj-$(CONFIG_MTD_NAND_CM_X270)		+= cmx270_nand.o
+ obj-$(CONFIG_MTD_NAND_PXA3xx)		+= pxa3xx_nand.o
+ obj-$(CONFIG_MTD_NAND_TMIO)		+= tmio_nand.o
+diff --git a/drivers/mtd/nand/ls2h_nand.c b/drivers/mtd/nand/ls2h_nand.c
+new file mode 100644
+index 00000000..a4ea85d0
+--- /dev/null
++++ b/drivers/mtd/nand/ls2h_nand.c
+@@ -0,0 +1,963 @@
++#include <linux/module.h>
++#include <linux/init.h>
++#include <linux/interrupt.h>
++#include <linux/platform_device.h>
++#include <linux/dma-mapping.h>
++#include <linux/delay.h>
++#include <linux/clk.h>
++#include <linux/mtd/mtd.h>
++#include <linux/mtd/nand.h>
++#include <linux/mtd/partitions.h>
++#include <linux/io.h>
++#include <linux/slab.h>
++#include <linux/irq.h>
++#include <asm/dma.h>
++#include <loongson-pch.h>
++
++#define DMA_ACCESS_ADDR		LS2H_NAND_DMA_ACC_REG
++#define ORDER_REG_ADDR		(CKSEG1ADDR(LS2H_DMA_ORDER_REG))
++#define MAX_BUFF_SIZE		4096
++#define NAND_PAGE_SHIFT		12
++#define NO_SPARE_ADDRH(x)	((x) >> (32 - (NAND_PAGE_SHIFT - 1 )))
++#define NO_SPARE_ADDRL(x)	((x) << (NAND_PAGE_SHIFT - 1))
++#define SPARE_ADDRH(x)		((x) >> (32 - (NAND_PAGE_SHIFT)))
++#define SPARE_ADDRL(x)		((x) << (NAND_PAGE_SHIFT))
++#define ALIGN_DMA(x)		(((x)+ 3)/4)
++
++#define USE_POLL
++#ifdef USE_POLL
++#define complete(...)
++#define init_completion(...)
++#define wait_for_completion_timeout(...)
++#define request_irq(...) (0)
++#define free_irq(...)
++#endif
++
++#define CHIP_DELAY_TIMEOUT (2*HZ/10)
++
++#define STATUS_TIME_LOOP_R	30
++#define STATUS_TIME_LOOP_WS	100
++#define STATUS_TIME_LOOP_WM	60
++#define STATUS_TIME_LOOP_E	100
++
++#define NAND_CMD	0x1
++#define NAND_ADDRL	0x2
++#define NAND_ADDRH	0x4
++#define NAND_TIMING	0x8
++#define NAND_IDL	0x10
++#define NAND_STATUS_IDL	0x20
++#define NAND_PARAM	0x40
++#define NAND_OP_NUM	0X80
++#define NAND_CS_RDY_MAP	0x100
++
++#define DMA_ORDERAD	0x1
++#define DMA_SADDR	0x2
++#define DMA_DADDR	0x4
++#define DMA_LENGTH	0x8
++#define DMA_STEP_LENGTH	0x10
++#define DMA_STEP_TIMES	0x20
++#define DMA_CMD		0x40
++
++#define	_NAND_IDL \
++	(*((volatile unsigned int*)(CKSEG1ADDR(LS2H_NAND_IDL_REG))))
++#define	_NAND_IDH \
++	(*((volatile unsigned int*)(CKSEG1ADDR(LS2H_NAND_STA_IDH_REG))))
++#define	_NAND_BASE	CKSEG1ADDR(LS2H_NAND_REG_BASE)
++#define	_NAND_SET_REG(x,y) \
++		do{*((volatile unsigned int*)(_NAND_BASE+x)) = (y);}while(0)
++#define	_NAND_READ_REG(x,y) \
++		do{(y) = *((volatile unsigned int*)(_NAND_BASE+x));}while(0)
++
++#define show_data_debug	0
++#define show_debug(x,y)	show_debug_msk(x,y)
++#define show_debug_msk(x,y) do{ if(show_data_debug) \
++	{printk(KERN_ERR "%s:\n",__func__);show_data(x,y);}}while(0)
++
++enum {
++	ERR_NONE = 0,
++	ERR_DMABUSERR = -1,
++	ERR_SENDCMD = -2,
++	ERR_DBERR = -3,
++	ERR_BBERR = -4,
++};
++
++enum {
++	STATE_READY = 0,
++	STATE_BUSY,
++};
++
++struct ls2h_nand_platform_data {
++	int enable_arbiter;
++	struct mtd_partition *parts;
++	unsigned int nr_parts;
++};
++
++struct ls2h_nand_cmdset {
++	uint32_t cmd_valid:1;
++	uint32_t read:1;
++	uint32_t write:1;
++	uint32_t erase_one:1;
++	uint32_t erase_con:1;
++	uint32_t read_id:1;
++	uint32_t reset:1;
++	uint32_t read_sr:1;
++	uint32_t op_main:1;
++	uint32_t op_spare:1;
++	uint32_t done:1;
++	uint32_t resv1:5;	//11-15 reserved
++	uint32_t nand_rdy:4;	//16-19
++	uint32_t nand_ce:4;	//20-23
++	uint32_t resv2:8;	//24-32 reserved
++};
++
++struct ls2h_nand_dma_desc {
++	uint32_t orderad;
++	uint32_t saddr;
++	uint32_t daddr;
++	uint32_t length;
++	uint32_t step_length;
++	uint32_t step_times;
++	uint32_t cmd;
++};
++
++struct ls2h_nand_dma_cmd {
++	uint32_t dma_int_mask:1;
++	uint32_t dma_int:1;
++	uint32_t dma_sl_tran_over:1;
++	uint32_t dma_tran_over:1;
++	uint32_t dma_r_state:4;
++	uint32_t dma_w_state:4;
++	uint32_t dma_r_w:1;
++	uint32_t dma_cmd:2;
++	uint32_t revl:17;
++};
++
++struct ls2h_nand_desc {
++	uint32_t cmd;
++	uint32_t addrl;
++	uint32_t addrh;
++	uint32_t timing;
++	uint32_t idl;		//readonly
++	uint32_t status_idh;	//readonly
++	uint32_t param;
++	uint32_t op_num;
++	uint32_t cs_rdy_map;
++};
++
++struct ls2h_nand_info {
++	struct nand_chip nand_chip;
++
++	struct platform_device *pdev;
++	/* MTD data control */
++	unsigned int buf_start;
++	unsigned int buf_count;
++	/* NAND registers */
++	void __iomem *mmio_base;
++	unsigned int irq;
++	struct ls2h_nand_desc nand_regs;
++	unsigned int nand_addrl;
++	unsigned int nand_addrh;
++	unsigned int nand_timing;
++	unsigned int nand_op_num;
++	unsigned int nand_cs_rdy_map;
++	unsigned int nand_cmd;
++
++	/* DMA information */
++
++	struct ls2h_nand_dma_desc dma_regs;
++	u64 order_reg_addr;
++	unsigned int dma_orderad;
++	unsigned int dma_saddr;
++	unsigned int dma_daddr;
++	unsigned int dma_length;
++	unsigned int dma_step_length;
++	unsigned int dma_step_times;
++	unsigned int dma_cmd;
++	u64 drcmr_dat;	/* dma descriptor address */
++	dma_addr_t drcmr_dat_phys;
++	size_t drcmr_dat_size;
++	unsigned char *data_buff;	/* dma data buffer */
++	dma_addr_t data_buff_phys;
++	size_t data_buff_size;
++	unsigned long cac_size;
++	unsigned long num;
++	unsigned long size;
++	struct timer_list test_timer;
++	u64 dma_ask;
++	dma_addr_t dma_ask_phy;
++
++	/* relate to the command */
++	unsigned int state;
++	size_t data_size;	/* data size in FIFO */
++	unsigned int cmd;
++	unsigned int page_addr;
++	struct completion cmd_complete;
++	unsigned int seqin_column;
++	unsigned int seqin_page_addr;
++	unsigned int timing_flag;
++	unsigned int timing_val;
++};
++
++/* this isn't used unless ecc.
++static struct nand_ecclayout hw_largepage_ecclayout = {
++	.eccbytes = 24,
++	.eccpos = {
++		   40, 41, 42, 43, 44, 45, 46, 47,
++		   48, 49, 50, 51, 52, 53, 54, 55,
++		   56, 57, 58, 59, 60, 61, 62, 63},
++	.oobfree = {{2, 38}}
++};
++*/
++
++static void show_data(void *base, int num)
++{
++	int i = 0;
++	unsigned char *arry = (unsigned char *)base;
++	for (i = 0; i < num; i++) {
++		if (!(i % 32)) {
++			printk(KERN_ERR "\n");
++		}
++		if (!(i % 16)) {
++			printk("  ");
++		}
++		printk("%02x ", arry[i]);
++	}
++	printk(KERN_ERR "\n");
++}
++
++static int ls2h_nand_init_buff(struct ls2h_nand_info *info)
++{
++	struct platform_device *pdev = info->pdev;
++	info->data_buff = dma_alloc_coherent(&pdev->dev, MAX_BUFF_SIZE,
++					     &info->data_buff_phys, GFP_KERNEL);
++	if (info->data_buff == NULL) {
++		dev_err(&pdev->dev, "failed to allocate dma buffer\n");
++		return -ENOMEM;
++	}
++	info->data_buff_size = MAX_BUFF_SIZE;
++	return 0;
++}
++
++static int ls2h_nand_ecc_calculate(struct mtd_info *mtd,
++				   const uint8_t * dat, uint8_t * ecc_code)
++{
++	return 0;
++}
++
++static int ls2h_nand_ecc_correct(struct mtd_info *mtd,
++				 uint8_t * dat, uint8_t * read_ecc,
++				 uint8_t * calc_ecc)
++{
++	/*
++	 * Any error include ERR_SEND_CMD, ERR_DBERR, ERR_BUSERR, we
++	 * consider it as a ecc error which will tell the caller the
++	 * read fail We have distinguish all the errors, but the
++	 * nand_read_ecc only check this function return value
++	 */
++	return 0;
++}
++
++static void ls2h_nand_ecc_hwctl(struct mtd_info *mtd, int mode)
++{
++	return;
++}
++
++static int ls2h_nand_waitfunc(struct mtd_info *mtd, struct nand_chip *this)
++{
++	udelay(50);
++	return 0;
++}
++
++static void ls2h_nand_select_chip(struct mtd_info *mtd, int chip)
++{
++	return;
++}
++
++static int ls2h_nand_dev_ready(struct mtd_info *mtd)
++{
++	return 1;
++}
++
++static void ls2h_nand_read_buf(struct mtd_info *mtd, uint8_t * buf, int len)
++{
++	struct ls2h_nand_info *info = mtd->priv;
++	int real_len = min_t(size_t, len, info->buf_count - info->buf_start);
++	memcpy(buf, info->data_buff + info->buf_start, real_len);
++
++	show_debug(info->data_buff, 0x40);
++
++	info->buf_start += real_len;
++}
++
++static u16 ls2h_nand_read_word(struct mtd_info *mtd)
++{
++	struct ls2h_nand_info *info = mtd->priv;
++	u16 retval = 0xFFFF;
++
++	if (!(info->buf_start & 0x1) && info->buf_start < info->buf_count) {
++		retval = *(u16 *) (info->data_buff + info->buf_start);
++	}
++	info->buf_start += 2;
++
++	return retval;
++}
++
++static uint8_t ls2h_nand_read_byte(struct mtd_info *mtd)
++{
++	struct ls2h_nand_info *info = mtd->priv;
++	char retval = 0xFF;
++	if (info->buf_start < info->buf_count)
++		retval = info->data_buff[(info->buf_start)++];
++	return retval;
++}
++
++static void ls2h_nand_write_buf(struct mtd_info *mtd, const uint8_t * buf,
++				int len)
++{
++	struct ls2h_nand_info *info = mtd->priv;
++	int real_len = min_t(size_t, len, info->buf_count - info->buf_start);
++
++	memcpy(info->data_buff + info->buf_start, buf, real_len);
++	show_debug(info->data_buff, 0x20);
++	info->buf_start += real_len;
++}
++
++static void ls2h_nand_cmdfunc(struct mtd_info *mtd, unsigned command,
++			      int column, int page_addr);
++
++static void ls2h_nand_init_mtd(struct mtd_info *mtd,
++			       struct ls2h_nand_info *info)
++{
++	struct nand_chip *this = &info->nand_chip;
++
++	this->options = 8;
++	this->waitfunc = ls2h_nand_waitfunc;
++	this->select_chip = ls2h_nand_select_chip;
++	this->dev_ready = ls2h_nand_dev_ready;
++	this->cmdfunc = ls2h_nand_cmdfunc;
++	this->read_word = ls2h_nand_read_word;
++	this->read_byte = ls2h_nand_read_byte;
++	this->read_buf = ls2h_nand_read_buf;
++	this->write_buf = ls2h_nand_write_buf;
++
++	this->ecc.mode = NAND_ECC_NONE;
++	this->ecc.hwctl = ls2h_nand_ecc_hwctl;
++	this->ecc.calculate = ls2h_nand_ecc_calculate;
++	this->ecc.correct = ls2h_nand_ecc_correct;
++	this->ecc.size = 2048;
++	this->ecc.bytes = 24;
++
++	mtd->owner = THIS_MODULE;
++}
++
++static unsigned ls2h_nand_status(struct ls2h_nand_info *info)
++{
++	return (*((volatile unsigned int *)CKSEG1ADDR(LS2H_NAND_CMD_REG)) &
++		(0x1 << 10));
++}
++
++#define write_z_cmd  do{	\
++	*((volatile unsigned int *)CKSEG1ADDR(LS2H_NAND_CMD_REG)) = 0;	\
++	*((volatile unsigned int *)CKSEG1ADDR(LS2H_NAND_CMD_REG)) = 0;	\
++	*((volatile unsigned int *)CKSEG1ADDR(LS2H_NAND_CMD_REG)) = 400;\
++}while(0)
++
++/* this isn't used until the bug is fixed up
++static irqreturn_t ls2h_nand_irq(int irq, void *devid)
++{
++	int status_time;
++	struct ls2h_nand_info *info = devid;
++	switch (info->cmd) {
++	case NAND_CMD_READOOB:
++	case NAND_CMD_READ0:
++		udelay(20);
++		info->state = STATE_READY;
++		break;
++	case NAND_CMD_PAGEPROG:
++		status_time = STATUS_TIME_LOOP_WS;
++		while (!(ls2h_nand_status(info))) {
++			if (!(status_time--)) {
++				write_z_cmd;
++				break;
++			}
++			udelay(50);
++		}
++		info->state = STATE_READY;
++		break;
++	default:
++		break;
++	}
++	complete(&info->cmd_complete);
++	return IRQ_HANDLED;
++}
++*/
++
++/*
++ *	flags & 0x1	orderad
++ *	flags & 0x2	saddr
++ *	flags & 0x4	daddr
++ *	flags & 0x8	length
++ *	flags & 0x10	step_length
++ *	flags & 0x20	step_times
++ *	flags & 0x40	cmd
++ ***/
++static unsigned char flagsss = 0;
++
++static void dma_setup(unsigned int flags, struct ls2h_nand_info *info)
++{
++	volatile struct ls2h_nand_dma_desc *dma_base =
++		(volatile struct ls2h_nand_dma_desc *)(info->drcmr_dat);
++	int status_time;
++	dma_base->orderad = (flags & DMA_ORDERAD) == DMA_ORDERAD ?
++		info->dma_regs.orderad : info->dma_orderad;
++	dma_base->saddr = (flags & DMA_SADDR) == DMA_SADDR ?
++		info->dma_regs.saddr : info->dma_saddr;
++	dma_base->daddr = (flags & DMA_DADDR) == DMA_DADDR ?
++		info->dma_regs.daddr : info->dma_daddr;
++	dma_base->length = (flags & DMA_LENGTH) == DMA_LENGTH ?
++		info->dma_regs.length : info->dma_length;
++	dma_base->step_length = (flags & DMA_STEP_LENGTH) == DMA_STEP_LENGTH ?
++		info->dma_regs.step_length : info->dma_step_length;
++	dma_base->step_times = (flags & DMA_STEP_TIMES) == DMA_STEP_TIMES ?
++		info->dma_regs.step_times : info->dma_step_times;
++	dma_base->cmd = (flags & DMA_CMD) == DMA_CMD ?
++		info->dma_regs.cmd : info->dma_cmd;
++	{
++		unsigned long flags;
++		local_irq_save(flags);
++		*(volatile unsigned int *)info->order_reg_addr =
++		    ((unsigned int)info->drcmr_dat_phys) | 0x1 << 3;
++		while (*(volatile unsigned int *)info->order_reg_addr & 0x8) ;
++#ifdef USE_POLL
++		/* wait nand irq, but there is no irq comming */
++		/* while ((ls2h_readl(LS2H_INT_ISR0_REG) & 0x400) == 0) ; */
++		/*clear irq */
++		ls2h_writel((ls2h_readl(LS2H_INT_CLR0_REG) | 0x400),
++				LS2H_INT_CLR0_REG);
++		status_time = STATUS_TIME_LOOP_WS;
++		while (!(ls2h_nand_status(info))) {
++			if (!(status_time--)) {
++				/*time out,so clear cmd,fixme */
++				write_z_cmd;
++				break;
++			}
++			udelay(60);
++		}
++		info->state = STATE_READY;
++#endif
++		local_irq_restore(flags);
++	}
++}
++
++/**
++ *	flags & 0x1	cmd
++ *	flags & 0x2	addrl
++ *	flags & 0x4	addrh
++ *	flags & 0x8	timing
++ *	flags & 0x10	idl
++ *	flags & 0x20	status_idh
++ *	flags & 0x40	param
++ *	flags & 0x80	op_num
++ *	flags & 0x100	cs_rdy_map
++ ****/
++static void nand_setup(unsigned int flags, struct ls2h_nand_info *info)
++{
++	struct ls2h_nand_desc *nand_base =
++	    (struct ls2h_nand_desc *)(info->mmio_base);
++	nand_base->cmd = 0;
++	nand_base->addrl =
++	    (flags & NAND_ADDRL) ==
++	    NAND_ADDRL ? info->nand_regs.addrl : info->nand_addrl;
++	nand_base->addrh =
++	    (flags & NAND_ADDRH) ==
++	    NAND_ADDRH ? info->nand_regs.addrh : info->nand_addrh;
++	nand_base->timing =
++	    (flags & NAND_TIMING) ==
++	    NAND_TIMING ? info->nand_regs.timing : info->nand_timing;
++	nand_base->op_num =
++	    (flags & NAND_OP_NUM) ==
++	    NAND_OP_NUM ? info->nand_regs.op_num : info->nand_op_num;
++	nand_base->cs_rdy_map =
++	    (flags & NAND_CS_RDY_MAP) ==
++	    NAND_CS_RDY_MAP ? info->nand_regs.cs_rdy_map : info->
++	    nand_cs_rdy_map;
++	if (flags & NAND_CMD) {
++		if (info->nand_regs.cmd & 0x4)
++			flagsss = 1;
++		else
++			flagsss = 0;
++
++		nand_base->cmd = (info->nand_regs.cmd) & (~0xff);
++		nand_base->cmd = info->nand_regs.cmd;
++	} else
++		nand_base->cmd = info->nand_cmd;
++}
++
++static void ls2h_nand_cmdfunc(struct mtd_info *mtd, unsigned command,
++			      int column, int page_addr)
++{
++	struct ls2h_nand_info *info = mtd->priv;
++	unsigned cmd_prev;
++	int status_time, page_prev;
++	init_completion(&info->cmd_complete);
++	cmd_prev = info->cmd;
++	page_prev = info->page_addr;
++
++	info->cmd = command;
++	info->page_addr = page_addr;
++	switch (command) {
++	case NAND_CMD_READOOB:
++		if (info->state == STATE_BUSY) {
++			printk("nandflash chip if busy...\n");
++			return;
++		}
++
++		info->state = STATE_BUSY;
++		info->buf_count = mtd->oobsize;
++		info->buf_start = 0;
++		info->cac_size = info->buf_count;
++		if (info->buf_count <= 0)
++			break;
++		/*nand regs set */
++		info->nand_regs.addrh = page_addr;
++		info->nand_regs.addrl = mtd->writesize;
++		info->nand_regs.op_num = info->buf_count;
++		/*nand cmd set */
++		info->nand_regs.cmd = 0;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->read = 1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->op_spare =
++		    1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->cmd_valid =
++		    1;
++		/*dma regs config */
++		info->dma_regs.length = ALIGN_DMA(info->buf_count);
++		((struct ls2h_nand_dma_cmd *)&(info->dma_regs.cmd))->
++		    dma_int_mask = 1;
++		/*dma GO set */
++		nand_setup(NAND_ADDRL | NAND_ADDRH | NAND_OP_NUM | NAND_CMD,
++			   info);
++		dma_setup(DMA_LENGTH | DMA_CMD, info);
++		break;
++	case NAND_CMD_READ0:
++		if (info->state == STATE_BUSY) {
++			printk("nandflash chip if busy...\n");
++			return;
++		}
++		info->state = STATE_BUSY;
++		info->buf_count = mtd->oobsize + mtd->writesize;
++		info->buf_start = 0;
++		info->cac_size = info->buf_count;
++		if (info->buf_count <= 0)
++			break;
++		info->nand_regs.addrh = page_addr;
++		info->nand_regs.addrl = 0x0;
++		info->nand_regs.op_num = info->buf_count;
++		/*nand cmd set */
++		info->nand_regs.cmd = 0;
++		info->dma_regs.cmd = 0;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->read = 1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->op_spare =
++		    1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->op_main =
++		    1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->cmd_valid =
++		    1;
++		/*dma regs config */
++		info->dma_regs.length = ALIGN_DMA(info->buf_count);
++		((struct ls2h_nand_dma_cmd *)&(info->dma_regs.cmd))->
++		    dma_int_mask = 1;
++		nand_setup(NAND_ADDRL | NAND_ADDRH | NAND_OP_NUM | NAND_CMD,
++			   info);
++		dma_setup(DMA_LENGTH | DMA_CMD, info);
++		break;
++	case NAND_CMD_SEQIN:
++		if (info->state == STATE_BUSY) {
++			printk("nandflash chip if busy...\n");
++			return;
++		}
++		info->state = STATE_BUSY;
++		info->buf_count = mtd->oobsize + mtd->writesize - column;
++		info->buf_start = 0;
++		info->seqin_column = column;
++		info->seqin_page_addr = page_addr;
++		complete(&info->cmd_complete);
++		break;
++	case NAND_CMD_PAGEPROG:
++		if (info->state == STATE_BUSY) {
++			printk("nandflash chip if busy...\n");
++			return;
++		}
++		info->state = STATE_BUSY;
++		if (cmd_prev != NAND_CMD_SEQIN) {
++			printk("Prev cmd don't complete...\n");
++			break;
++		}
++		if (info->buf_count <= 0)
++			break;
++
++		/*nand regs set */
++		info->nand_regs.addrh = info->seqin_page_addr;
++		info->nand_regs.addrl = info->seqin_column;
++		info->nand_regs.op_num = info->buf_start;
++		/*nand cmd set */
++		info->nand_regs.cmd = 0;
++		info->dma_regs.cmd = 0;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->write = 1;
++		if (info->seqin_column < mtd->writesize)
++			((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->
++			    op_main = 1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->op_spare =
++		    1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->cmd_valid =
++		    1;
++		/*dma regs config */
++		info->dma_regs.length = ALIGN_DMA(info->buf_start);
++		((struct ls2h_nand_dma_cmd *)&(info->dma_regs.cmd))->
++		    dma_int_mask = 1;
++		((struct ls2h_nand_dma_cmd *)&(info->dma_regs.cmd))->dma_r_w =
++		    1;
++		nand_setup(NAND_ADDRL | NAND_ADDRH | NAND_OP_NUM | NAND_CMD,
++			   info);
++		dma_setup(DMA_LENGTH | DMA_CMD, info);
++		break;
++	case NAND_CMD_RESET:
++		/*nand cmd set */
++		info->nand_regs.cmd = 0;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->reset = 1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->cmd_valid =
++		    1;
++		nand_setup(NAND_CMD, info);
++		status_time = STATUS_TIME_LOOP_R;
++		while (!ls2h_nand_status(info)) {
++			if (!(status_time--)) {
++				write_z_cmd;
++				break;
++			}
++			udelay(50);
++		}
++		complete(&info->cmd_complete);
++		break;
++	case NAND_CMD_ERASE1:
++		if (info->state == STATE_BUSY) {
++			printk("nandflash chip if busy...\n");
++			return;
++		}
++		info->state = STATE_BUSY;
++		/*nand regs set */
++		info->nand_regs.addrh = page_addr;
++		info->nand_regs.addrl = 0x0;
++		/*nand cmd set */
++		info->nand_regs.cmd = 0;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->erase_one =
++		    1;
++		((struct ls2h_nand_cmdset *)&(info->nand_regs.cmd))->cmd_valid =
++		    1;
++		nand_setup(NAND_ADDRL | NAND_ADDRH | NAND_OP_NUM | NAND_CMD,
++			   info);
++		status_time = STATUS_TIME_LOOP_E;
++		while (!ls2h_nand_status(info)) {
++			if (!(status_time--)) {
++				write_z_cmd;
++				break;
++			}
++			udelay(50);
++		}
++		info->state = STATE_READY;
++		complete(&info->cmd_complete);
++		break;
++	case NAND_CMD_STATUS:
++		if (info->state == STATE_BUSY) {
++			printk("nandflash chip if busy...\n");
++			return;
++		}
++		info->state = STATE_BUSY;
++		info->buf_count = 0x1;
++		info->buf_start = 0x0;
++		*(unsigned char *)info->data_buff =
++		    ls2h_nand_status(info) | 0x80;
++		complete(&info->cmd_complete);
++		break;
++	case NAND_CMD_READID:
++		if (info->state == STATE_BUSY) {
++			printk("nandflash chip if busy...\n");
++			return;
++		}
++		info->state = STATE_BUSY;
++		info->buf_count = 0x4;
++		info->buf_start = 0;
++
++		{
++			unsigned int id_val_l = 0, id_val_h = 0;
++			unsigned int timing = 0;
++			unsigned char *data =
++			    (unsigned char *)(info->data_buff);
++			_NAND_READ_REG(0xc, timing);
++			_NAND_SET_REG(0xc, 0x30f0);
++			_NAND_SET_REG(0x0, 0x21);
++
++			while (((id_val_l |= _NAND_IDL) & 0xff) == 0) {
++				id_val_h = _NAND_IDH;
++			}
++			while (((id_val_h = _NAND_IDH) & 0xff) == 0) ;
++#ifdef NAND_DEBUG
++			printk("id_val_l=0x%08x\nid_val_h=0x%08x\n", id_val_l,
++			       id_val_h);
++#endif
++			_NAND_SET_REG(0xc, timing);
++			data[0] = (id_val_h & 0xff);
++			data[1] = (id_val_l & 0xff000000) >> 24;
++			data[2] = (id_val_l & 0x00ff0000) >> 16;
++			data[3] = (id_val_l & 0x0000ff00) >> 8;
++#ifdef NAND_DEBUG
++			printk(KERN_ERR
++			       "IDS=============================0x%x\n",
++			       *((int *)(info->data_buff)));
++#endif
++		}
++		complete(&info->cmd_complete);
++		break;
++	case NAND_CMD_ERASE2:
++	case NAND_CMD_READ1:
++		complete(&info->cmd_complete);
++		break;
++	default:
++		printk(KERN_ERR "non-supported command.\n");
++		complete(&info->cmd_complete);
++		break;
++	}
++	wait_for_completion_timeout(&info->cmd_complete, timeout);
++	if (info->cmd == NAND_CMD_READ0 || info->cmd == NAND_CMD_READOOB) {
++		dma_cache_inv((unsigned long)(info->data_buff), info->cac_size);
++	}
++	info->state = STATE_READY;
++}
++
++static int ls2h_nand_detect(struct mtd_info *mtd)
++{
++	return (mtd->erasesize != 1 << 17 || mtd->writesize != 1 << 11
++		|| mtd->oobsize != 1 << 6);
++}
++
++static void test_handler(unsigned long data)
++{
++	u32 val;
++
++	struct ls2h_nand_info *s = (struct ls2h_nand_info *)data;
++	mod_timer(&s->test_timer, jiffies + 1);
++	val = s->dma_ask_phy | 0x4;
++	*(volatile unsigned int *)CKSEG1ADDR(LS2H_DMA_ORDER_REG) = val;
++	udelay(1000);
++}
++
++static void ls2h_nand_init_info(struct ls2h_nand_info *info)
++{
++	info->timing_flag = 1;	/*0:read; 1:write; */
++	info->num = 0;
++	info->size = 0;
++	info->cac_size = 0;
++	info->state = STATE_READY;
++	info->cmd = -1;
++	info->page_addr = -1;
++	info->nand_addrl = 0x0;
++	info->nand_addrh = 0x0;
++	info->nand_timing = 0x412;	// 0x4<<8 | 0x12;
++	info->nand_op_num = 0x0;
++	info->nand_cs_rdy_map = 0x00000000;
++	info->nand_cmd = 0;
++
++	info->dma_orderad = 0x0;
++	info->dma_saddr = info->data_buff_phys;
++	info->dma_daddr = DMA_ACCESS_ADDR;
++	info->dma_length = 0x0;
++	info->dma_step_length = 0x0;
++	info->dma_step_times = 0x1;
++	info->dma_cmd = 0x0;
++
++	init_timer(&info->test_timer);
++	info->test_timer.function = test_handler;
++	info->test_timer.expires = jiffies + 10;
++	info->test_timer.data = (unsigned long)info;
++
++	info->order_reg_addr = ORDER_REG_ADDR;
++}
++
++static int ls2h_nand_probe(struct platform_device *pdev)
++{
++	struct ls2h_nand_platform_data *pdata;
++	struct ls2h_nand_info *info;
++	struct nand_chip *this;
++	struct mtd_info *mtd;
++	struct resource *r;
++	int ret = 0, irq;
++
++#ifdef CONFIG_MTD_CMDLINE_PARTS
++	const char *part_probes[] = { "cmdlinepart", NULL };
++#endif
++	struct mtd_partition *partitions = NULL;
++	int num_partitions = 0;
++
++	pdata = pdev->dev.platform_data;
++
++	if (!pdata) {
++		dev_err(&pdev->dev, "no platform data defined\n");
++		return -ENODEV;
++	}
++
++	mtd = kzalloc(sizeof(struct mtd_info) + sizeof(struct ls2h_nand_info),
++		      GFP_KERNEL);
++	if (!mtd) {
++		dev_err(&pdev->dev, "failed to allocate memory\n");
++		return -ENOMEM;
++	}
++
++	info = (struct ls2h_nand_info *)(&mtd[1]);
++	info->pdev = pdev;
++
++	this = &info->nand_chip;
++	mtd->priv = info;
++	info->drcmr_dat = (u64) dma_alloc_coherent(&pdev->dev, MAX_BUFF_SIZE,
++						   &info->drcmr_dat_phys,
++						   GFP_KERNEL);
++	info->dma_ask =
++	    (u64) dma_alloc_coherent(&pdev->dev, MAX_BUFF_SIZE,
++				     &info->dma_ask_phy, GFP_KERNEL);
++
++	if (!info->drcmr_dat) {
++		dev_err(&pdev->dev, "fialed to allocate memory\n");
++		ret = -ENOMEM;
++		goto fail_free_mtd;
++	}
++	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (r == NULL) {
++		dev_err(&pdev->dev, "no IO memory resource defined\n");
++		ret = -ENODEV;
++		goto fail_free_buf;
++	}
++
++	r = request_mem_region(r->start, r->end - r->start + 1, pdev->name);
++	if (r == NULL) {
++		dev_err(&pdev->dev, "failed to request memory resource\n");
++		ret = -EBUSY;
++		goto fail_free_buf;
++	}
++
++	info->mmio_base = ioremap(r->start, r->end - r->start + 1);
++	if (info->mmio_base == NULL) {
++		dev_err(&pdev->dev, "ioremap() failed\n");
++		ret = -ENODEV;
++		goto fail_free_res;
++	}
++	ret = ls2h_nand_init_buff(info);
++	if (ret)
++		goto fail_free_io;
++
++	irq = platform_get_irq(pdev, 0);
++	if (irq < 0) {
++		dev_err(&pdev->dev, "no IRQ resource defined\n");
++		ret = -ENXIO;
++		goto fail_free_io;
++	}
++	info->irq = irq;
++
++	ls2h_nand_init_mtd(mtd, info);
++	ls2h_nand_init_info(info);
++	platform_set_drvdata(pdev, mtd);
++
++	if (nand_scan(mtd, 1)) {
++		dev_err(&pdev->dev, "failed to scan nand\n");
++		ret = -ENXIO;
++		goto fail_free_irq;
++	}
++	if (ls2h_nand_detect(mtd)) {
++		dev_err(&pdev->dev, "driver don't support the Flash!\n");
++		ret = -ENXIO;
++		goto fail_free_irq;
++	}
++#ifdef CONFIG_MTD_CMDLINE_PARTS
++	mtd->name = "mtd0";
++	num_partitions = parse_mtd_partitions(mtd, part_probes, &partitions, 0);
++#endif
++	if (num_partitions <= 0) {
++		partitions = pdata->parts;
++		num_partitions = pdata->nr_parts;
++	}
++	return mtd_device_register(mtd, partitions, num_partitions);
++
++fail_free_irq:
++	free_irq(irq, info);
++fail_free_io:
++	iounmap(info->mmio_base);
++fail_free_res:
++	release_mem_region(r->start, r->end - r->start + 1);
++fail_free_buf:
++	dma_free_coherent(&pdev->dev, info->data_buff_size,
++			  info->data_buff, info->data_buff_phys);
++fail_free_mtd:
++	kfree(mtd);
++	return ret;
++}
++
++static int ls2h_nand_remove(struct platform_device *pdev)
++{
++	struct mtd_info *mtd = platform_get_drvdata(pdev);
++	struct ls2h_nand_info *info = mtd->priv;
++
++	platform_set_drvdata(pdev, NULL);
++
++	mtd_device_unregister(mtd);
++	free_irq(info->irq, info);
++	kfree((void *)info->drcmr_dat);
++	kfree(mtd);
++
++	return 0;
++}
++
++static int ls2h_nand_suspend(struct platform_device *pdev, pm_message_t state)
++{
++	struct mtd_info *mtd = (struct mtd_info *)platform_get_drvdata(pdev);
++	struct ls2h_nand_info *info = mtd->priv;
++
++	if (info->state != STATE_READY) {
++		dev_err(&pdev->dev, "driver busy, state = %d\n", info->state);
++		return -EAGAIN;
++	}
++
++	return 0;
++}
++
++static int ls2h_nand_resume(struct platform_device *pdev)
++{
++	return 0;
++}
++
++static struct platform_driver ls2h_nand_driver = {
++	.probe = ls2h_nand_probe,
++	.remove = ls2h_nand_remove,
++	.suspend = ls2h_nand_suspend,
++	.resume = ls2h_nand_resume,
++	.driver = {
++		   .name = "ls2h-nand",
++		   .owner = THIS_MODULE,
++		   },
++};
++
++static int __init ls2h_nand_init(void)
++{
++	int ret = 0;
++
++	ret = platform_driver_register(&ls2h_nand_driver);
++	if (ret) {
++		printk(KERN_ERR "failed to register loongson_1g_nand_driver\n");
++	}
++	return ret;
++}
++
++static void __exit ls2h_nand_exit(void)
++{
++	platform_driver_unregister(&ls2h_nand_driver);
++}
++
++module_init(ls2h_nand_init);
++module_exit(ls2h_nand_exit);
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("Loongson-2H NAND controller driver");
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_ethtool.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_ethtool.c
+index 2e51b816..74610aa2 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_ethtool.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_ethtool.c
+@@ -375,13 +375,6 @@ static void stmmac_ethtool_setmsglevel(struct net_device *dev, u32 level)
+
+ }
+
+-static int stmmac_check_if_running(struct net_device *dev)
+-{
+-	if (!netif_running(dev))
+-		return -EBUSY;
+-	return 0;
+-}
+-
+ static int stmmac_ethtool_get_regs_len(struct net_device *dev)
+ {
+ 	return REG_SPACE_SIZE;
+@@ -752,7 +745,6 @@ static int stmmac_get_ts_info(struct net_device *dev,
+ }
+
+ static const struct ethtool_ops stmmac_ethtool_ops = {
+-	.begin = stmmac_check_if_running,
+ 	.get_drvinfo = stmmac_ethtool_getdrvinfo,
+ 	.get_settings = stmmac_ethtool_getsettings,
+ 	.set_settings = stmmac_ethtool_setsettings,
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+index a5b869eb..f776bc42 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -48,6 +48,9 @@
+ #include <linux/debugfs.h>
+ #include <linux/seq_file.h>
+ #endif /* CONFIG_DEBUG_FS */
++#if defined(CONFIG_CPU_LOONGSON3)
++#include <linux/i2c.h>
++#endif
+ #include <linux/net_tstamp.h>
+ #include "stmmac_ptp.h"
+ #include "stmmac.h"
+@@ -98,6 +101,13 @@ static int buf_sz = DEFAULT_BUFSIZE;
+
+ #define	STMMAC_RX_COPYBREAK	256
+
++#if defined(CONFIG_CPU_LOONGSON3)
++static struct eep_info {
++	unsigned short addr;
++	struct i2c_adapter *adapter;
++} eeprom_info;
++#endif
++
+ static const u32 default_msg_level = (NETIF_MSG_DRV | NETIF_MSG_PROBE |
+ 				      NETIF_MSG_LINK | NETIF_MSG_IFUP |
+ 				      NETIF_MSG_IFDOWN | NETIF_MSG_TIMER);
+@@ -1609,6 +1619,69 @@ static int stmmac_get_hw_features(struct stmmac_priv *priv)
+ 	return ret;
+ }
+
++#if defined(CONFIG_CPU_LOONGSON3)
++static int stmmac_eep_get_mac_addr(struct stmmac_priv *priv, unsigned char *buf)
++{
++	struct platform_device *pdev = to_platform_device(priv->device);
++	unsigned int data_addr = 6 * pdev->id;
++	unsigned char start[2];
++	struct i2c_msg msgs[] = {
++		{
++			.addr	= eeprom_info.addr,
++			.flags	= 0,
++			.len	= 2,
++			.buf	= start,
++		}, {
++			.addr	= eeprom_info.addr,
++			.flags	= I2C_M_RD,
++			.len	= 6,
++			.buf	= buf,
++		}
++	};
++
++	start[0] = (data_addr >> 8) & 0x1f;
++	start[1] = data_addr & 0xff;
++
++	if (eeprom_info.adapter == NULL) {
++		pr_err("%s: eeprom_info is not initalized\n", __func__);
++		return 0;
++	}
++
++	if (i2c_transfer(eeprom_info.adapter, msgs, 2) == 2)
++		return 1;
++	else
++		return 0;
++
++}
++
++static int stmmac_eep_set_mac_addr(struct stmmac_priv *priv, unsigned char *buf)
++{
++	struct platform_device *pdev = to_platform_device(priv->device);
++	unsigned int data_addr = 6 * pdev->id;
++	unsigned char start[8];
++	struct i2c_msg msgs = {
++		.addr	= eeprom_info.addr,
++		.flags	= 0,
++		.len	= 8,
++		.buf	= start,
++	};
++
++	start[0] = (data_addr >> 8) & 0x1f;
++	start[1] = data_addr & 0xff;
++	memcpy(&start[2], buf, 6);
++
++	if (eeprom_info.adapter == NULL) {
++		pr_err("%s: eeprom_info is not initalized\n", __func__);
++		return 0;
++	}
++
++	if (i2c_transfer(eeprom_info.adapter, &msgs, 1) == 1)
++		return 1;
++	else
++		return 0;
++}
++#endif
++
+ /**
+  * stmmac_check_ether_addr - check if the MAC addr is valid
+  * @priv: driver private structure
+@@ -1618,6 +1691,9 @@ static int stmmac_get_hw_features(struct stmmac_priv *priv)
+  */
+ static void stmmac_check_ether_addr(struct stmmac_priv *priv)
+ {
++#if defined(CONFIG_CPU_LOONGSON3)
++	stmmac_eep_get_mac_addr(priv, priv->dev->dev_addr);
++#endif
+ 	if (!is_valid_ether_addr(priv->dev->dev_addr)) {
+ 		priv->hw->mac->get_umac_addr(priv->hw,
+ 					     priv->dev->dev_addr, 0);
+@@ -1786,8 +1862,6 @@ static int stmmac_open(struct net_device *dev)
+ 	struct stmmac_priv *priv = netdev_priv(dev);
+ 	int ret;
+
+-	stmmac_check_ether_addr(priv);
+-
+ 	if (priv->hw->pcs != STMMAC_PCS_RGMII &&
+ 			priv->hw->pcs != STMMAC_PCS_TBI &&
+ 			priv->hw->pcs != STMMAC_PCS_RTBI) {
+@@ -2711,6 +2785,22 @@ static void stmmac_exit_fs(struct net_device *dev)
+ }
+ #endif /* CONFIG_DEBUG_FS */
+
++#if defined(CONFIG_CPU_LOONGSON3)
++int stmmac_set_mac_address(struct net_device *dev, void *p)
++{
++	struct stmmac_priv *priv = netdev_priv(dev);
++	struct sockaddr *addr = p;
++
++	if (!is_valid_ether_addr(addr->sa_data))
++		return -EADDRNOTAVAIL;
++
++	stmmac_eep_set_mac_addr(priv, addr->sa_data);
++	memcpy(dev->dev_addr, addr->sa_data, ETH_ALEN);
++	priv->hw->mac->set_umac_addr((void *) dev->base_addr, dev->dev_addr, 0);
++
++	return 0;
++}
++#endif
+ static const struct net_device_ops stmmac_netdev_ops = {
+ 	.ndo_open = stmmac_open,
+ 	.ndo_start_xmit = stmmac_xmit,
+@@ -2724,7 +2814,11 @@ static const struct net_device_ops stmmac_netdev_ops = {
+ #ifdef CONFIG_NET_POLL_CONTROLLER
+ 	.ndo_poll_controller = stmmac_poll_controller,
+ #endif
++#if defined(CONFIG_CPU_LOONGSON3)
++	.ndo_set_mac_address = stmmac_set_mac_address,
++#else
+ 	.ndo_set_mac_address = eth_mac_addr,
++#endif
+ };
+
+ /**
+@@ -2813,6 +2907,39 @@ static int stmmac_hw_init(struct stmmac_priv *priv)
+ 	return 0;
+ }
+
++#if defined(CONFIG_CPU_LOONGSON3)
++static const struct i2c_device_id eep_ids[] = {
++	{ "eeprom-loongson", 0 },
++	{ /* END OF LIST */ }
++};
++
++MODULE_DEVICE_TABLE(i2c, eep_ids);
++
++static int eep_probe(struct i2c_client *client, const struct i2c_device_id *id)
++{
++	eeprom_info.addr = client->addr;
++	eeprom_info.adapter = client->adapter;
++	return 0;
++}
++
++static int eep_remove(struct i2c_client *client)
++{
++	return 0;
++}
++
++static struct i2c_driver eep_driver = {
++	.driver = {
++		.name = "eep-mac",
++		.owner = THIS_MODULE,
++	},
++	.probe = eep_probe,
++	.remove = eep_remove,
++	.id_table = eep_ids,
++};
++#endif
++
++static int nr_probed = 0;
++
+ /**
+  * stmmac_dvr_probe
+  * @device: device pointer
+@@ -2831,6 +2958,11 @@ int stmmac_dvr_probe(struct device *device,
+ 	struct net_device *ndev = NULL;
+ 	struct stmmac_priv *priv;
+
++#if defined(CONFIG_CPU_LOONGSON3)
++	if (!nr_probed)
++		i2c_add_driver(&eep_driver);
++#endif
++
+ 	ndev = alloc_etherdev(sizeof(struct stmmac_priv));
+ 	if (!ndev)
+ 		return -ENOMEM;
+@@ -2936,6 +3068,8 @@ int stmmac_dvr_probe(struct device *device,
+
+ 	netif_napi_add(ndev, &priv->napi, stmmac_poll, 64);
+
++	stmmac_check_ether_addr(priv);
++
+ 	spin_lock_init(&priv->lock);
+ 	spin_lock_init(&priv->tx_lock);
+
+@@ -2969,6 +3103,8 @@ int stmmac_dvr_probe(struct device *device,
+ 		}
+ 	}
+
++	nr_probed++;
++
+ 	return 0;
+
+ error_mdio_register:
+@@ -2996,6 +3132,7 @@ int stmmac_dvr_remove(struct net_device *ndev)
+ {
+ 	struct stmmac_priv *priv = netdev_priv(ndev);
+
++	nr_probed--;
+ 	pr_info("%s:\n\tremoving driver", __func__);
+
+ 	priv->hw->dma->stop_rx(priv->ioaddr);
+@@ -3012,6 +3149,10 @@ int stmmac_dvr_remove(struct net_device *ndev)
+ 	    priv->pcs != STMMAC_PCS_RTBI)
+ 		stmmac_mdio_unregister(ndev);
+ 	free_netdev(ndev);
++#if defined(CONFIG_CPU_LOONGSON3)
++	if (!nr_probed)
++		i2c_del_driver(&eep_driver);
++#endif
+
+ 	return 0;
+ }
+diff --git a/drivers/platform/mips/lemote3a-laptop.c b/drivers/platform/mips/lemote3a-laptop.c
+index 6cd89d6c..4dde2197 100644
+--- a/drivers/platform/mips/lemote3a-laptop.c
++++ b/drivers/platform/mips/lemote3a-laptop.c
+@@ -29,7 +29,9 @@
+ #include <linux/leds.h>
+ #include <asm/bootinfo.h>
+
++#include <boot_param.h>
+ #include <ec_wpce775l.h>
++#include <loongson-pch.h>
+
+ #define KEY_TOUCHPAD_SW	KEY_F21
+ #define KEY_MODEM	KEY_F24
+@@ -75,7 +77,6 @@ enum /* bat_reg_flag */
+
+ /* SCI device */
+ #define EC_SCI_DEV		"sci"	/* < 10 bytes. */
+-#define SCI_IRQ_NUM		0x07
+ #define GPIO_SIZE		256
+
+ const char *version = EC_VERSION;
+@@ -569,8 +570,10 @@ static int lemote3a_laptop_suspend(struct platform_device * pdev, pm_message_t s
+ {
+ 	struct pci_dev *dev;
+
+-	dev = pci_get_device(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_SBX00_SMBUS, NULL);
+-	pci_disable_device(dev);
++	if (loongson_pch->board_type == RS780E) {
++		dev = pci_get_device(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_SBX00_SMBUS, NULL);
++		pci_disable_device(dev);
++	}
+
+ 	return 0;
+ }
+@@ -580,8 +583,10 @@ static int lemote3a_laptop_resume(struct platform_device * pdev)
+ {
+ 	struct pci_dev *dev;
+
+-	dev = pci_get_device(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_SBX00_SMBUS, NULL);
+-	pci_enable_device(dev);
++	if (loongson_pch->board_type == RS780E) {
++		dev = pci_get_device(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_SBX00_SMBUS, NULL);
++		pci_enable_device(dev);
++	}
+
+ 	/* Process LID event */
+ 	lemote3a_sci_event_handler(SCI_EVENT_NUM_LID);
+@@ -995,7 +1000,8 @@ static int sci_pci_init(void)
+ 	int ret = -EIO;
+ 	struct pci_dev *pdev;
+
+-	pdev = pci_get_device(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_SBX00_SMBUS, NULL);
++	if (loongson_pch->board_type == RS780E)
++		pdev = pci_get_device(PCI_VENDOR_ID_ATI, PCI_DEVICE_ID_ATI_SBX00_SMBUS, NULL);
+
+ 	/* Create the sci device */
+ 	lemote3a_sci_device = kmalloc(sizeof(struct sci_device), GFP_KERNEL);
+@@ -1005,18 +1011,20 @@ static int sci_pci_init(void)
+ 	}
+
+ 	/* Fill sci device */
+-	lemote3a_sci_device->irq = SCI_IRQ_NUM;
++	lemote3a_sci_device->irq = loongson_sysconf.ec_sci_irq;
+ 	lemote3a_sci_device->irq_data = 0x00;
+ 	lemote3a_sci_device->number = 0x00;
+ 	lemote3a_sci_device->parameter = 0x00;
+ 	strcpy(lemote3a_sci_device->name, EC_SCI_DEV);
+
+ 	/* Enable pci device and get the GPIO resources. */
+-	ret = pci_enable_device(pdev);
+-	if (ret) {
+-		printk(KERN_ERR "Lemote Laptop Platform Driver : Enable pci device failed!\n");
+-		ret = -ENODEV;
+-		goto out_pdev;
++	if (loongson_pch->board_type == RS780E) {
++		ret = pci_enable_device(pdev);
++		if (ret) {
++			printk(KERN_ERR "Lemote Laptop Platform Driver : Enable pci device failed!\n");
++			ret = -ENODEV;
++			goto out_pdev;
++		}
+ 	}
+
+ 	/* Clear sci status: GPM9Status field in bit14 of
+@@ -1037,7 +1045,8 @@ static int sci_pci_init(void)
+ 	goto out;
+
+ out_irq:
+-	pci_disable_device(pdev);
++	if (loongson_pch->board_type == RS780E)
++		pci_disable_device(pdev);
+ out_pdev:
+ 	kfree(lemote3a_sci_device);
+ out:
+diff --git a/drivers/rtc/Kconfig b/drivers/rtc/Kconfig
+index 2a524244..6ae79d08 100644
+--- a/drivers/rtc/Kconfig
++++ b/drivers/rtc/Kconfig
+@@ -1163,6 +1163,13 @@ config RTC_DRV_IMXDI
+ 	   This driver can also be built as a module, if so, the module
+ 	   will be called "rtc-imxdi".
+
++config RTC_DRV_LS2H
++	tristate "Loongson-2H RTC"
++	depends on CPU_LOONGSON3
++	help
++         If you say yes here you get support for the RTC on the
++         Loongson-2H Platform-Bridge.
++
+ config RTC_DRV_OMAP
+ 	tristate "TI OMAP Real Time Clock"
+ 	depends on ARCH_OMAP || ARCH_DAVINCI || COMPILE_TEST
+diff --git a/drivers/rtc/Makefile b/drivers/rtc/Makefile
+index 231f7645..047a2841 100644
+--- a/drivers/rtc/Makefile
++++ b/drivers/rtc/Makefile
+@@ -37,6 +37,7 @@ obj-$(CONFIG_RTC_DRV_BQ32K)	+= rtc-bq32k.o
+ obj-$(CONFIG_RTC_DRV_BQ4802)	+= rtc-bq4802.o
+ obj-$(CONFIG_RTC_DRV_CMOS)	+= rtc-cmos.o
+ obj-$(CONFIG_RTC_DRV_COH901331)	+= rtc-coh901331.o
++obj-$(CONFIG_RTC_DRV_LS2H)     	+= rtc-ls2h.o
+ obj-$(CONFIG_RTC_DRV_DA9052)	+= rtc-da9052.o
+ obj-$(CONFIG_RTC_DRV_DA9055)	+= rtc-da9055.o
+ obj-$(CONFIG_RTC_DRV_DA9063)	+= rtc-da9063.o
+diff --git a/drivers/rtc/rtc-ls2h.c b/drivers/rtc/rtc-ls2h.c
+new file mode 100644
+index 00000000..efe61325
+--- /dev/null
++++ b/drivers/rtc/rtc-ls2h.c
+@@ -0,0 +1,220 @@
++/*
++ * Loongson-2H Real Time Clock interface for Linux
++ *
++ * Author: liushaozong <liushaozong@loongson.cn>
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version
++ * 2 of the License, or (at your option) any later version.
++ */
++
++#include <linux/kernel.h>
++#include <linux/slab.h>
++#include <linux/init.h>
++#include <linux/module.h>
++#include <linux/ioport.h>
++#include <linux/delay.h>
++#include <linux/rtc.h>
++#include <linux/bcd.h>
++#include <linux/platform_device.h>
++#include <linux/time.h>
++#include <linux/spinlock.h>
++#include <asm/io.h>
++#include <asm/time.h>
++#include <loongson-pch.h>
++
++/**
++ * Loongson-2H rtc register
++ */
++
++#define TOY_TRIM_REG   0x20
++#define TOY_WRITE0_REG 0x24
++#define TOY_WRITE1_REG 0x28
++#define TOY_READ0_REG  0x2c
++#define TOY_READ1_REG  0x30
++#define TOY_MATCH0_REG 0x34
++#define TOY_MATCH1_REG 0x38
++#define TOY_MATCH2_REG 0x3c
++#define RTC_CTRL_REG   0x40
++#define RTC_TRIM_REG   0x60
++#define RTC_WRITE0_REG 0x64
++#define RTC_READE0_REG 0x68
++#define RTC_MATCH0_REG 0x6c
++#define RTC_MATCH1_REG 0x70
++#define RTC_MATCH2_REG 0x74
++
++/**
++ * shift bits and filed mask
++ */
++#define TOY_MON_MASK   0x3f
++#define TOY_DAY_MASK   0x1f
++#define TOY_HOUR_MASK  0x1f
++#define TOY_MIN_MASK   0x3f
++#define TOY_SEC_MASK   0x3f
++#define TOY_MSEC_MASK  0xf
++
++#define TOY_MON_SHIFT  26
++#define TOY_DAY_SHIFT  21
++#define TOY_HOUR_SHIFT 16
++#define TOY_MIN_SHIFT  10
++#define TOY_SEC_SHIFT  4
++#define TOY_MSEC_SHIFT 0
++
++#define rtc_write(val, addr)   writel(val, rtc_reg_base + (addr))
++#define rtc_read(addr)         readl(rtc_reg_base + (addr))
++
++struct ls2h_rtc_info {
++	struct platform_device *pdev;
++	struct rtc_device *rtc_dev;
++	struct resource *mem_res;
++	void __iomem *rtc_base;
++	int irq_base;
++};
++
++static void __iomem *rtc_reg_base;
++
++static int ls2h_rtc_read_time(struct device *dev, struct rtc_time *tm)
++{
++	unsigned int val;
++	unsigned long flags;
++
++	spin_lock_irqsave(&rtc_lock, flags);
++
++	val = rtc_read(TOY_READ1_REG);
++	tm->tm_year = val;
++	val = rtc_read(TOY_READ0_REG);
++	tm->tm_sec = (val >> TOY_SEC_SHIFT) & TOY_SEC_MASK;
++	tm->tm_min = (val >> TOY_MIN_SHIFT) & TOY_MIN_MASK;
++	tm->tm_hour = (val >> TOY_HOUR_SHIFT) & TOY_HOUR_MASK;
++	tm->tm_mday = (val >> TOY_DAY_SHIFT) & TOY_DAY_MASK;
++	tm->tm_mon = ((val >> TOY_MON_SHIFT) & TOY_MON_MASK) - 1;
++
++	spin_unlock_irqrestore(&rtc_lock, flags);
++
++	return 0;
++}
++
++static int ls2h_rtc_set_time(struct device *dev, struct rtc_time *tm)
++{
++	unsigned int val = 0;
++	unsigned long flags;
++
++	spin_lock_irqsave(&rtc_lock, flags);
++
++	val |= (tm->tm_sec << TOY_SEC_SHIFT);
++	val |= (tm->tm_min << TOY_MIN_SHIFT);
++	val |= (tm->tm_hour << TOY_HOUR_SHIFT);
++	val |= (tm->tm_mday << TOY_DAY_SHIFT);
++	val |= ((tm->tm_mon + 1) << TOY_MON_SHIFT);
++	rtc_write(val, TOY_WRITE0_REG);
++	val = tm->tm_year;
++	rtc_write(val, TOY_WRITE1_REG);
++
++	spin_unlock_irqrestore(&rtc_lock, flags);
++
++	return 0;
++}
++
++static struct rtc_class_ops ls2h_rtc_ops = {
++	.read_time = ls2h_rtc_read_time,
++	.set_time = ls2h_rtc_set_time,
++};
++
++static int ls2h_rtc_probe(struct platform_device *pdev)
++{
++	struct resource *res, *mem;
++	struct rtc_device *rtc;
++	struct ls2h_rtc_info *info;
++
++	info = kzalloc(sizeof(struct ls2h_rtc_info), GFP_KERNEL);
++	if (!info) {
++		pr_debug("%s: no enough memory\n", pdev->name);
++		return -ENOMEM;
++	}
++
++	info->pdev = pdev;
++	info->irq_base = platform_get_irq(pdev, 0);
++	if (info->irq_base <= 0) {
++		pr_debug("%s: no irq?\n", pdev->name);
++		return -ENOENT;
++	}
++
++	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (!res) {
++		pr_debug("%s: RTC resource data missing\n", pdev->name);
++		return -ENOENT;
++	}
++
++	mem = request_mem_region(res->start, resource_size(res), pdev->name);
++	if (!mem) {
++		pr_debug("%s: RTC registers at %x are not free\n",
++			 pdev->name, (unsigned int)res->start);
++		return -EBUSY;
++	}
++	info->mem_res = mem;
++
++	info->rtc_base = ioremap(res->start, resource_size(res));
++	if (!info->rtc_base) {
++		pr_debug("%s: RTC registers can't be mapped\n", pdev->name);
++		goto fail;
++	}
++	rtc_reg_base = info->rtc_base;
++
++	rtc = info->rtc_dev = rtc_device_register(pdev->name, &pdev->dev,
++						  &ls2h_rtc_ops, THIS_MODULE);
++	if (IS_ERR(info->rtc_dev)) {
++		pr_debug("%s: can't register RTC device, err %ld\n",
++			 pdev->name, PTR_ERR(rtc));
++		goto fail0;
++	}
++	platform_set_drvdata(pdev, info);
++	dev_set_drvdata(&rtc->dev, info);
++	return 0;
++
++      fail0:
++	iounmap(info->rtc_base);
++      fail:
++	release_resource(mem);
++	kfree(info);
++	return -EIO;
++}
++
++static int ls2h_rtc_remove(struct platform_device *pdev)
++{
++	struct ls2h_rtc_info *info = platform_get_drvdata(pdev);
++	struct rtc_device *rtc = info->rtc_dev;
++
++	iounmap(info->rtc_base);
++	release_resource(dev_get_drvdata(&rtc->dev));
++	release_resource(info->mem_res);
++	rtc_device_unregister(rtc);
++	kfree(info);
++	return 0;
++}
++
++static struct platform_driver ls2h_rtc_driver = {
++	.probe	= ls2h_rtc_probe,
++	.remove	= ls2h_rtc_remove,
++	.driver = {
++		   .name	= "ls2h-rtc",
++		   .owner	= THIS_MODULE,
++		   },
++};
++
++static int __init rtc_init(void)
++{
++	return platform_driver_register(&ls2h_rtc_driver);
++}
++
++static void __exit rtc_exit(void)
++{
++	platform_driver_unregister(&ls2h_rtc_driver);
++}
++
++module_init(rtc_init);
++module_exit(rtc_exit);
++
++MODULE_AUTHOR("Liu Shaozong");
++MODULE_LICENSE("GPL");
++MODULE_ALIAS("platform:ls2h-rtc");
+diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
+index 84df0936..41fa95ef 100644
+--- a/drivers/usb/core/hub.c
++++ b/drivers/usb/core/hub.c
+@@ -3062,15 +3062,6 @@ static int usb_disable_remote_wakeup(struct usb_device *udev)
+ 				USB_CTRL_SET_TIMEOUT);
+ }
+
+-/* Count of wakeup-enabled devices at or below udev */
+-static unsigned wakeup_enabled_descendants(struct usb_device *udev)
+-{
+-	struct usb_hub *hub = usb_hub_to_struct_hub(udev);
+-
+-	return udev->do_remote_wakeup +
+-			(hub ? hub->wakeup_enabled_descendants : 0);
+-}
+-
+ /*
+  * usb_port_suspend - suspend a usb device's upstream port
+  * @udev: device that's no longer in active use, not a root hub
+@@ -3111,8 +3102,8 @@ static unsigned wakeup_enabled_descendants(struct usb_device *udev)
+  * Linux (2.6) currently has NO mechanisms to initiate that:  no hub_wq
+  * timer, no SRP, no requests through sysfs.
+  *
+- * If Runtime PM isn't enabled or used, non-SuperSpeed devices may not get
+- * suspended until their bus goes into global suspend (i.e., the root
++ * If Runtime PM isn't enabled or used, non-SuperSpeed devices really get
++ * suspended only when their bus goes into global suspend (i.e., the root
+  * hub is suspended).  Nevertheless, we change @udev->state to
+  * USB_STATE_SUSPENDED as this is the device's "logical" state.  The actual
+  * upstream port setting is stored in @udev->port_is_suspended.
+@@ -3166,21 +3157,15 @@ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
+ 	/* see 7.1.7.6 */
+ 	if (hub_is_superspeed(hub->hdev))
+ 		status = hub_set_port_link_state(hub, port1, USB_SS_PORT_LS_U3);
+-
++	else if (PMSG_IS_AUTO(msg))
++		status = set_port_feature(hub->hdev, port1,
++						USB_PORT_FEAT_SUSPEND);
+ 	/*
+ 	 * For system suspend, we do not need to enable the suspend feature
+ 	 * on individual USB-2 ports.  The devices will automatically go
+ 	 * into suspend a few ms after the root hub stops sending packets.
+ 	 * The USB 2.0 spec calls this "global suspend".
+-	 *
+-	 * However, many USB hubs have a bug: They don't relay wakeup requests
+-	 * from a downstream port if the port's suspend feature isn't on.
+-	 * Therefore we will turn on the suspend feature if udev or any of its
+-	 * descendants is enabled for remote wakeup.
+ 	 */
+-	else if (PMSG_IS_AUTO(msg) || wakeup_enabled_descendants(udev) > 0)
+-		status = set_port_feature(hub->hdev, port1,
+-				USB_PORT_FEAT_SUSPEND);
+ 	else {
+ 		really_suspend = false;
+ 		status = 0;
+@@ -3205,16 +3190,15 @@ int usb_port_suspend(struct usb_device *udev, pm_message_t msg)
+ 		if (!PMSG_IS_AUTO(msg))
+ 			status = 0;
+ 	} else {
++		/* device has up to 10 msec to fully suspend */
+ 		dev_dbg(&udev->dev, "usb %ssuspend, wakeup %d\n",
+ 				(PMSG_IS_AUTO(msg) ? "auto-" : ""),
+ 				udev->do_remote_wakeup);
++		usb_set_device_state(udev, USB_STATE_SUSPENDED);
+ 		if (really_suspend) {
+ 			udev->port_is_suspended = 1;
+-
+-			/* device has up to 10 msec to fully suspend */
+ 			msleep(10);
+ 		}
+-		usb_set_device_state(udev, USB_STATE_SUSPENDED);
+ 	}
+
+ 	if (status == 0 && !udev->do_remote_wakeup && udev->persist_enabled
+@@ -3560,11 +3544,7 @@ static int hub_suspend(struct usb_interface *intf, pm_message_t msg)
+ 	unsigned		port1;
+ 	int			status;
+
+-	/*
+-	 * Warn if children aren't already suspended.
+-	 * Also, add up the number of wakeup-enabled descendants.
+-	 */
+-	hub->wakeup_enabled_descendants = 0;
++	/* Warn if children aren't already suspended */
+ 	for (port1 = 1; port1 <= hdev->maxchild; port1++) {
+ 		struct usb_port *port_dev = hub->ports[port1 - 1];
+ 		struct usb_device *udev = port_dev->child;
+@@ -3575,9 +3555,6 @@ static int hub_suspend(struct usb_interface *intf, pm_message_t msg)
+ 			if (PMSG_IS_AUTO(msg))
+ 				return -EBUSY;
+ 		}
+-		if (udev)
+-			hub->wakeup_enabled_descendants +=
+-					wakeup_enabled_descendants(udev);
+ 	}
+
+ 	if (hdev->do_remote_wakeup && hub->quirk_check_port_auto_suspend) {
+diff --git a/drivers/usb/core/hub.h b/drivers/usb/core/hub.h
+index 688817fb..1d8f7e4f 100644
+--- a/drivers/usb/core/hub.h
++++ b/drivers/usb/core/hub.h
+@@ -61,9 +61,6 @@ struct usb_hub {
+ 	struct usb_tt		tt;		/* Transaction Translator */
+
+ 	unsigned		mA_per_port;	/* current for each child */
+-#ifdef	CONFIG_PM
+-	unsigned		wakeup_enabled_descendants;
+-#endif
+
+ 	unsigned		limited_power:1;
+ 	unsigned		quiescing:1;
+diff --git a/drivers/usb/dwc2/core.c b/drivers/usb/dwc2/core.c
+index ef73e498..0a9f5e1d 100644
+--- a/drivers/usb/dwc2/core.c
++++ b/drivers/usb/dwc2/core.c
+@@ -2809,7 +2809,7 @@ void dwc2_set_param_phy_utmi_width(struct dwc2_hsotg *hsotg, int val)
+ 				val);
+ 		}
+ 		val = (hsotg->hw_params.utmi_phy_data_width ==
+-		       GHWCFG4_UTMI_PHY_DATA_WIDTH_8) ? 8 : 16;
++		       GHWCFG4_UTMI_PHY_DATA_WIDTH_16) ? 16 : 8;
+ 		dev_dbg(hsotg->dev, "Setting phy_utmi_width to %d\n", val);
+ 	}
+
+diff --git a/drivers/usb/dwc2/platform.c b/drivers/usb/dwc2/platform.c
+index 39c1cbf0..26835ff1 100644
+--- a/drivers/usb/dwc2/platform.c
++++ b/drivers/usb/dwc2/platform.c
+@@ -349,6 +349,7 @@ static int dwc2_driver_probe(struct platform_device *dev)
+ 		 * it, but does not support it for SPLIT transactions.
+     * Disable it for FS devices as well.
+ 		 */
++		defparams.hibernation = 1;
+ 		defparams.dma_desc_enable = 0;
+  	defparams.dma_desc_fs_enable = 0;
+ 	}
+@@ -369,6 +370,8 @@ static int dwc2_driver_probe(struct platform_device *dev)
+
+ 	res = platform_get_resource(dev, IORESOURCE_MEM, 0);
+ 	hsotg->regs = devm_ioremap_resource(&dev->dev, res);
++	if (hsotg->regs == IOMEM_ERR_PTR(-EBUSY)) /* Already requested */
++		hsotg->regs = devm_ioremap(&dev->dev, res->start, resource_size(res));
+ 	if (IS_ERR(hsotg->regs))
+ 		return PTR_ERR(hsotg->regs);
+
+diff --git a/drivers/video/fbdev/Kconfig b/drivers/video/fbdev/Kconfig
+index f07a0974..eff1b639 100644
+--- a/drivers/video/fbdev/Kconfig
++++ b/drivers/video/fbdev/Kconfig
+@@ -1976,6 +1976,15 @@ config FB_W100
+
+ 	  If unsure, say N.
+
++config FB_LS2H
++	tristate "Loongson-2H frame buffer support"
++	depends on FB && CPU_LOONGSON3
++	select FB_CFB_FILLRECT
++	select FB_CFB_COPYAREA
++	select FB_CFB_IMAGEBLIT
++	---help---
++	  Frame buffer driver for the Loongson-2H Platform-Bridge.
++
+ config FB_SH_MOBILE_LCDC
+ 	tristate "SuperH Mobile LCDC framebuffer support"
+ 	depends on FB && (SUPERH || ARCH_RENESAS) && HAVE_CLK
+diff --git a/drivers/video/fbdev/Makefile b/drivers/video/fbdev/Makefile
+index 50ed1b4f..bc8f0910 100644
+--- a/drivers/video/fbdev/Makefile
++++ b/drivers/video/fbdev/Makefile
+@@ -90,6 +90,7 @@ obj-$(CONFIG_FB_PXA168)		  += pxa168fb.o
+ obj-$(CONFIG_PXA3XX_GCU)	  += pxa3xx-gcu.o
+ obj-$(CONFIG_MMP_DISP)           += mmp/
+ obj-$(CONFIG_FB_W100)		  += w100fb.o
++obj-$(CONFIG_FB_LS2H)		  += ls2hfb.o
+ obj-$(CONFIG_FB_TMIO)		  += tmiofb.o
+ obj-$(CONFIG_FB_AU1100)		  += au1100fb.o
+ obj-$(CONFIG_FB_AU1200)		  += au1200fb.o
+diff --git a/drivers/video/fbdev/ls2hfb.c b/drivers/video/fbdev/ls2hfb.c
+new file mode 100644
+index 00000000..63f65962
+--- /dev/null
++++ b/drivers/video/fbdev/ls2hfb.c
+@@ -0,0 +1,1126 @@
++/*
++ *  linux/drivers/video/ls2hfb.c -- Loongson-2H frame buffer device
++ *
++ *  This file is subject to the terms and conditions of the GNU General Public
++ *  License. See the file COPYING in the main directory of this archive for
++ *  more details.
++ */
++
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/errno.h>
++#include <linux/string.h>
++#include <linux/mm.h>
++#include <linux/slab.h>
++#include <linux/vmalloc.h>
++#include <linux/delay.h>
++#include <linux/interrupt.h>
++#include <linux/spinlock.h>
++#include <linux/platform_device.h>
++#include <linux/dma-mapping.h>
++#include <linux/i2c.h>
++
++#include <asm/addrspace.h>
++#include <linux/fb.h>
++#include <linux/init.h>
++#include <linux/console.h>
++#include <loongson-pch.h>
++#include "edid.h"
++
++#ifdef LS2H_FB_DEBUG
++#define LS2H_DEBUG(frm, arg...)	\
++	printk("ls2hfb: %s %d: "frm, __func__, __LINE__, ##arg);
++#else
++#define LS2H_DEBUG(frm, arg...)
++#endif /* LS2H_FB_DEBUG */
++
++#define ON	1
++#define OFF	0
++
++#define CUR_WIDTH_SIZE		32
++#define CUR_HEIGHT_SIZE		32
++#define DEFAULT_BITS_PER_PIXEL	16
++
++#define DEFAULT_FB_DMA		0x02000000
++#define DEFAULT_FB_MEM		0x90000e0002000000
++#define DEFAULT_PHY_ADDR	0x00000e0002000000
++#define DEFAULT_CURSOR_DMA	0x03000000
++#define DEFAULT_CURSOR_MEM	0x90000e0003000000
++
++static struct eep_info {
++	unsigned short addr;
++	struct i2c_adapter *adapter;
++} eeprom_info;
++
++struct ls2h_fb_par {
++	struct platform_device *pdev;
++	struct fb_info *fb_info;
++	unsigned int reg_base;
++	unsigned int irq;
++	unsigned int htotal;
++	unsigned int vtotal;
++	u8 *edid;
++};
++static void *videomemory;
++static dma_addr_t video_dma;
++static void *cursor_mem;
++static dma_addr_t cursor_dma;
++static char *mode_option = NULL;
++
++static unsigned int cursor_size = 0x1000;
++static unsigned long videomemorysize = 0;
++module_param(videomemorysize, ulong, 0);
++
++DEFINE_SPINLOCK(fb_lock);
++
++static struct fb_var_screeninfo ls2h_fb_default = {
++	.xres		= 1280,
++	.yres		= 1024,
++	.xres_virtual	= 1280,
++	.yres_virtual	= 1024,
++	.xoffset	= 0,
++	.yoffset	= 0,
++	.bits_per_pixel = DEFAULT_BITS_PER_PIXEL,
++	.red		= { 11, 5 ,0},
++	.green		= { 5, 6, 0 },
++	.blue		= { 0, 5, 0 },
++	.activate	= FB_ACTIVATE_NOW,
++	.height		= -1,
++	.width		= -1,
++	.pixclock	= 9259,
++	.left_margin	= 248,
++	.right_margin	= 48,
++	.upper_margin	= 38,
++	.lower_margin	= 1,
++	.hsync_len	= 112,
++	.vsync_len	= 3,
++	.sync		= 3,
++	.vmode =	FB_VMODE_NONINTERLACED,
++};
++static struct fb_fix_screeninfo ls2h_fb_fix = {
++	.id =		"Loongson-2H FB",
++	.type =		FB_TYPE_PACKED_PIXELS,
++	.visual =	FB_VISUAL_TRUECOLOR,
++	.xpanstep =	1,
++	.ypanstep =	1,
++	.ywrapstep =	1,
++	.accel =	FB_ACCEL_NONE,
++};
++
++static bool ls2h_fb_enable __initdata;	/* disabled by default */
++module_param(ls2h_fb_enable, bool, 0);
++
++/*
++ *  Internal routines
++ */
++
++static u_long get_line_length(int xres_virtual, int bpp)
++{
++	u_long length;
++
++	length = xres_virtual * bpp;
++	length = (length + 31) & ~31;
++	length >>= 3;
++	return (length);
++}
++
++/*
++ *  Setting the video mode has been split into two parts.
++ *  First part, xxxfb_check_var, must not write anything
++ *  to hardware, it should only verify and adjust var.
++ *  This means it doesn't alter par but it does use hardware
++ *  data from it to check this var.
++ */
++
++static int ls2h_fb_check_var(struct fb_var_screeninfo *var,
++			 struct fb_info *info)
++{
++	u_long line_length;
++
++	/*
++	 *  FB_VMODE_CONUPDATE and FB_VMODE_SMOOTH_XPAN are equal!
++	 *  as FB_VMODE_SMOOTH_XPAN is only used internally
++	 */
++
++	if (var->vmode & FB_VMODE_CONUPDATE) {
++		var->vmode |= FB_VMODE_YWRAP;
++		var->xoffset = info->var.xoffset;
++		var->yoffset = info->var.yoffset;
++	}
++
++	/*
++	 *  Some very basic checks
++	 */
++	if (!var->xres)
++		var->xres = 1;
++	if (!var->yres)
++		var->yres = 1;
++	if (var->xres > var->xres_virtual)
++		var->xres_virtual = var->xres;
++	if (var->yres > var->yres_virtual)
++		var->yres_virtual = var->yres;
++	if (var->bits_per_pixel <= 1)
++		var->bits_per_pixel = 1;
++	else if (var->bits_per_pixel <= 8)
++		var->bits_per_pixel = 8;
++	else if (var->bits_per_pixel <= 16)
++		var->bits_per_pixel = 16;
++	else if (var->bits_per_pixel <= 24)
++		var->bits_per_pixel = 24;
++	else if (var->bits_per_pixel <= 32)
++		var->bits_per_pixel = 32;
++	else
++		return -EINVAL;
++
++	if (var->xres_virtual < var->xoffset + var->xres)
++		var->xres_virtual = var->xoffset + var->xres;
++	if (var->yres_virtual < var->yoffset + var->yres)
++		var->yres_virtual = var->yoffset + var->yres;
++
++	/*
++	 *  Memory limit
++	 */
++	line_length =
++		get_line_length(var->xres_virtual, var->bits_per_pixel);
++	if (videomemorysize &&  line_length * var->yres_virtual > videomemorysize)
++		return -ENOMEM;
++
++	/*
++	 * Now that we checked it we alter var. The reason being is that the video
++	 * mode passed in might not work but slight changes to it might make it
++	 * work. This way we let the user know what is acceptable.
++	 */
++	switch (var->bits_per_pixel) {
++	case 1:
++	case 8:
++		var->red.offset = 0;
++		var->red.length = 8;
++		var->green.offset = 0;
++		var->green.length = 8;
++		var->blue.offset = 0;
++		var->blue.length = 8;
++		var->transp.offset = 0;
++		var->transp.length = 0;
++		break;
++	case 15:		/* RGBA 555 */
++		var->red.offset = 10;
++		var->red.length = 5;
++		var->green.offset = 5;
++		var->green.length = 5;
++		var->blue.offset = 0;
++		var->blue.length = 5;
++		break;
++	case 16:		/* BGR 565 */
++		var->red.offset = 11;
++		var->red.length = 5;
++		var->green.offset = 5;
++		var->green.length = 6;
++		var->blue.offset = 0;
++		var->blue.length = 5;
++		var->transp.offset = 0;
++		var->transp.length = 0;
++		break;
++	case 24:		/* RGB 888 */
++		var->red.offset = 16;
++		var->red.length = 8;
++		var->green.offset = 8;
++		var->green.length = 8;
++		var->blue.offset = 0;
++		var->blue.length = 8;
++		var->transp.offset = 0;
++		var->transp.length = 0;
++		break;
++	case 32:		/* ARGB 8888 */
++		var->red.offset = 16;
++		var->red.length = 8;
++		var->green.offset = 8;
++		var->green.length = 8;
++		var->blue.offset = 0;
++		var->blue.length = 8;
++		var->transp.offset = 24;
++		var->transp.length = 8;
++		break;
++	}
++	var->red.msb_right = 0;
++	var->green.msb_right = 0;
++	var->blue.msb_right = 0;
++	var->transp.msb_right = 0;
++
++	return 0;
++}
++
++static unsigned int cal_freq(unsigned int pixclock)
++{
++	unsigned int pstdiv, pll_ldf, pll_odf, pll_idf;
++	unsigned int div = 0, ldf = 0, odf = 0, idf = 0, fref = 0;
++	unsigned int min = 100000, a, fvco, fvcof, b;
++
++	for (pstdiv = 1; pstdiv < 32; pstdiv++) {
++		a = pixclock * pstdiv;
++		for (pll_odf = 1; pll_odf <= 8; pll_odf *= 2) {
++			fvco = a * pll_odf;
++			if((fvco < 600000) || (fvco > 1800000))
++				continue;
++			for ( pll_idf = 1; pll_idf < 8; pll_idf++) {
++				fref = 100000 / pll_idf;
++				for ( pll_ldf = 8; pll_ldf < 256;
++						pll_ldf++) {
++					fvcof = fref * 2 * pll_ldf;
++					if ((fvcof < 600000) ||
++						(fvcof > 1800000))
++						continue;
++					b = (fvcof > fvco)?
++						(fvcof - fvco):
++						(fvco -fvcof);
++					if (b < min) {
++						min = b;
++						div = pstdiv;
++						ldf = pll_ldf;
++						odf = pll_odf;
++						idf = pll_idf;
++					}
++				}
++			}
++		}
++	}
++
++	pll_odf = (odf == 8)? 3 : (odf == 4)? 2 : (odf == 2)? 1 : 0;
++
++	LS2H_DEBUG("pixclock = %d; min = %d; div = %d;"
++			"ldf = %d; odf = %d; idf = %d\n",
++			pixclock, min, div, ldf, odf, idf);
++
++	a = (div << 24) | (ldf << 16) | (pll_odf << 5) | (idf << 2);
++	return a;
++}
++
++static void ls2h_reset_cursor_image(void)
++{
++	u8 __iomem *addr = (u8 *)DEFAULT_CURSOR_MEM;
++	memset(addr, 0, 32*32*4);
++}
++
++void show_var(struct fb_var_screeninfo *var)
++{
++	printk("xres: %d, yres: %d, bits_per_pixel: %d\n",
++		var->xres, var->yres, var->bits_per_pixel);
++}
++
++static int ls2h_init_regs(struct fb_info *info)
++{
++	unsigned int pix_freq;
++	unsigned int out, depth, j;
++	unsigned int hr, hss, hse, hfl;
++	unsigned int vr, vss, vse, vfl;
++	struct fb_var_screeninfo *var = &info->var;
++
++	show_var(var);
++
++	hr	= var->xres;
++	hss	= hr + var->right_margin;
++	hse	= hss + var->hsync_len;
++	hfl	= hse + var->left_margin;
++
++	vr	= var->yres;
++	vss	= vr + var->lower_margin;
++	vse	= vss + var->vsync_len;
++	vfl	= vse + var->upper_margin;
++
++	depth = var->bits_per_pixel;
++	pix_freq = PICOS2KHZ(var->pixclock);
++
++	out = cal_freq(pix_freq);
++
++	/* change to refclk */
++	ls2h_writel(0, LS2H_PIXCLK0_CTRL1_REG);
++	ls2h_writel(0, LS2H_PIXCLK1_CTRL1_REG);
++
++	/* reset pstiev */
++	ls2h_writel((out | 0xc0000000), LS2H_PIXCLK0_CTRL0_REG);
++	ls2h_writel((out | 0xc0000000), LS2H_PIXCLK1_CTRL0_REG);
++
++	/* wait 10000ns */
++	for (j = 1; j <= 1000; j++)
++		ls2h_readl(LS2H_CHIP_SAMP0_REG);
++
++	/* set pstdiv */
++	ls2h_writel((out | 0x80000000), LS2H_PIXCLK0_CTRL0_REG);
++	ls2h_writel((out | 0x80000000), LS2H_PIXCLK1_CTRL0_REG);
++
++	/* wait 10000ns */
++	for (j = 1; j <= 1000; j++)
++		ls2h_readl(LS2H_CHIP_SAMP0_REG);
++
++	/* pll_powerdown */
++	ls2h_writel((out | 0x00000080), LS2H_PIXCLK0_CTRL0_REG);
++	ls2h_writel((out | 0x00000080), LS2H_PIXCLK1_CTRL0_REG);
++
++	/* wait 10000ns */
++	for (j = 1; j <= 1000; j++)
++		ls2h_readl(LS2H_CHIP_SAMP0_REG);
++
++	/* pll_powerup set pll*/
++	ls2h_writel(out, LS2H_PIXCLK0_CTRL0_REG);
++	ls2h_writel(out, LS2H_PIXCLK1_CTRL0_REG);
++
++	/* wait pll_lock */
++	while ((ls2h_readl(LS2H_CHIP_SAMP0_REG) & 0x00001800) != 0x00001800) {}
++
++	/* change to pllclk */
++	ls2h_writel(0x1, LS2H_PIXCLK0_CTRL1_REG);
++	ls2h_writel(0x1, LS2H_PIXCLK1_CTRL1_REG);
++
++	/* Make DVO port putout the panel1 the same with VGA */
++	ls2h_writel(0x0, LS2H_FB_CFG_DVO_REG);
++	ls2h_writel(0x100200, LS2H_FB_CFG_DVO_REG);
++
++	/* VGA */
++	ls2h_writel(0, LS2H_FB_CFG_VGA_REG);
++	ls2h_writel(0x3, LS2H_FB_CFG_VGA_REG);
++	ls2h_writel(video_dma, LS2H_FB_ADDR0_VGA_REG);
++	ls2h_writel(video_dma, LS2H_FB_ADDR1_VGA_REG);
++	ls2h_writel(0, LS2H_FB_DITCFG_VGA_REG);
++	ls2h_writel(0, LS2H_FB_DITTAB_LO_VGA_REG);
++	ls2h_writel(0, LS2H_FB_DITTAB_HI_VGA_REG);
++	ls2h_writel(0x80001311, LS2H_FB_PANCFG_VGA_REG);
++	ls2h_writel(0x80001311, LS2H_FB_PANTIM_VGA_REG);
++
++	ls2h_writel((hfl << 16) | hr, LS2H_FB_HDISPLAY_VGA_REG);
++	ls2h_writel(0x40000000 | (hse << 16) | hss, LS2H_FB_HSYNC_VGA_REG);
++	ls2h_writel((vfl << 16) | vr, LS2H_FB_VDISPLAY_VGA_REG);
++	ls2h_writel(0x40000000 | (vse << 16) | vss, LS2H_FB_VSYNC_VGA_REG);
++
++	switch (depth) {
++	case 32:
++	case 24:
++		ls2h_writel(0x00100104, LS2H_FB_CFG_VGA_REG);
++		ls2h_writel((hr * 4 + 255) & ~255, LS2H_FB_STRI_VGA_REG);
++		break;
++	case 16:
++		ls2h_writel(0x00100103, LS2H_FB_CFG_VGA_REG);
++		ls2h_writel((hr * 2 + 255) & ~255, LS2H_FB_STRI_VGA_REG);
++		break;
++	case 15:
++		ls2h_writel(0x00100102, LS2H_FB_CFG_VGA_REG);
++		ls2h_writel((hr * 2 + 255) & ~255, LS2H_FB_STRI_VGA_REG);
++		break;
++	case 12:
++		ls2h_writel(0x00100101, LS2H_FB_CFG_VGA_REG);
++		ls2h_writel((hr * 2 + 255) & ~255, LS2H_FB_STRI_VGA_REG);
++		break;
++	default:
++		ls2h_writel(0x00100104, LS2H_FB_CFG_VGA_REG);
++		ls2h_writel((hr * 4 + 255) & ~255, LS2H_FB_STRI_VGA_REG);
++		break;
++	}
++
++	/* cursor */
++	/* Select full color ARGB mode */
++	ls2h_writel(0x00050212, LS2H_FB_CUR_CFG_REG);
++	ls2h_writel(cursor_dma, LS2H_FB_CUR_ADDR_REG);
++	ls2h_writel(0x00060122, LS2H_FB_CUR_LOC_ADDR_REG);
++	ls2h_writel(0x00eeeeee, LS2H_FB_CUR_BACK_REG);
++	ls2h_writel(0x00aaaaaa, LS2H_FB_CUR_FORE_REG);
++	ls2h_reset_cursor_image();
++
++	/* enable interupt */
++	ls2h_writel(0x280 << 16, LS2H_FB_INT_REG);
++
++	return 0;
++}
++
++/* This routine actually sets the video mode. It's in here where we
++ * the hardware state info->par and fix which can be affected by the
++ * change in par. For this driver it doesn't do much.
++ */
++static int ls2h_fb_set_par(struct fb_info *info)
++{
++	unsigned long flags;
++	info->fix.line_length = get_line_length(info->var.xres_virtual,
++						info->var.bits_per_pixel);
++	spin_lock_irqsave(&fb_lock, flags);
++	ls2h_init_regs(info);
++	spin_unlock_irqrestore(&fb_lock, flags);
++
++	return 0;
++}
++
++/*
++ *  Set a single color register. The values supplied are already
++ *  rounded down to the hardware's capabilities (according to the
++ *  entries in the var structure). Return != 0 for invalid regno.
++ */
++
++static int ls2h_fb_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
++			 u_int transp, struct fb_info *info)
++{
++	if (regno >= 256)	/* no. of hw registers */
++		return 1;
++	/*
++	 * Program hardware... do anything you want with transp
++	 */
++
++	/* grayscale works only partially under directcolor */
++	if (info->var.grayscale) {
++		/* grayscale = 0.30*R + 0.59*G + 0.11*B */
++		red = green = blue =
++			(red * 77 + green * 151 + blue * 28) >> 8;
++	}
++
++	/* Directcolor:
++	 *   var->{color}.offset contains start of bitfield
++	 *   var->{color}.length contains length of bitfield
++	 *   {hardwarespecific} contains width of RAMDAC
++	 *   cmap[X] is programmed to (X << red.offset) | (X << green.offset) | (X << blue.offset)
++	 *   RAMDAC[X] is programmed to (red, green, blue)
++	 *
++	 * Pseudocolor:
++	 *    uses offset = 0 && length = RAMDAC register width.
++	 *    var->{color}.offset is 0
++	 *    var->{color}.length contains widht of DAC
++	 *    cmap is not used
++	 *    RAMDAC[X] is programmed to (red, green, blue)
++	 * Truecolor:
++	 *    does not use DAC. Usually 3 are present.
++	 *    var->{color}.offset contains start of bitfield
++	 *    var->{color}.length contains length of bitfield
++	 *    cmap is programmed to (red << red.offset) | (green << green.offset) |
++	 *                      (blue << blue.offset) | (transp << transp.offset)
++	 *    RAMDAC does not exist
++	 */
++#define CNVT_TOHW(val,width) ((((val)<<(width))+0x7FFF-(val))>>16)
++	switch (info->fix.visual) {
++	case FB_VISUAL_TRUECOLOR:
++	case FB_VISUAL_PSEUDOCOLOR:
++		red = CNVT_TOHW(red, info->var.red.length);
++		green = CNVT_TOHW(green, info->var.green.length);
++		blue = CNVT_TOHW(blue, info->var.blue.length);
++		transp = CNVT_TOHW(transp, info->var.transp.length);
++		break;
++	case FB_VISUAL_DIRECTCOLOR:
++		red = CNVT_TOHW(red, 8);	/* expect 8 bit DAC */
++		green = CNVT_TOHW(green, 8);
++		blue = CNVT_TOHW(blue, 8);
++		/* hey, there is bug in transp handling... */
++		transp = CNVT_TOHW(transp, 8);
++		break;
++	}
++#undef CNVT_TOHW
++	/* Truecolor has hardware independent palette */
++	if (info->fix.visual == FB_VISUAL_TRUECOLOR) {
++		u32 v;
++
++		if (regno >= 16)
++			return 1;
++
++		v = (red << info->var.red.offset) |
++			(green << info->var.green.offset) |
++			(blue << info->var.blue.offset) |
++			(transp << info->var.transp.offset);
++		switch (info->var.bits_per_pixel) {
++		case 8:
++			break;
++		case 16:
++			((u32 *) (info->pseudo_palette))[regno] = v;
++			break;
++		case 24:
++		case 32:
++			((u32 *) (info->pseudo_palette))[regno] = v;
++			break;
++		}
++		return 0;
++	}
++	return 0;
++}
++
++static int ls2h_fb_blank (int blank_mode, struct fb_info *info)
++{
++	return 0;
++}
++
++/*************************************************************
++ *                Hardware Cursor Routines                   *
++ *************************************************************/
++
++/**
++ * ls2h_enable_cursor - show or hide the hardware cursor
++ * @mode: show (1) or hide (0)
++ *
++ * Description:
++ * Shows or hides the hardware cursor
++ */
++static void ls2h_enable_cursor(int mode)
++{
++	unsigned int tmp = ls2h_readl(LS2H_FB_CUR_CFG_REG);
++	tmp &= ~0xff;
++	ls2h_writel(mode ? (tmp | 0x12) : (tmp | 0x10),
++			LS2H_FB_CUR_CFG_REG);
++}
++
++static void ls2h_load_cursor_image(int width, int height, u8 *data)
++{
++	u32 __iomem *addr = (u32 *)DEFAULT_CURSOR_MEM;
++	int row, col, i, j, bit = 0;
++	col = (width > CUR_HEIGHT_SIZE)? CUR_HEIGHT_SIZE : width;
++	row = (height > CUR_WIDTH_SIZE)? CUR_WIDTH_SIZE : height;
++
++	for (i = 0; i < CUR_HEIGHT_SIZE; i++) {
++		for (j = 0; j < CUR_WIDTH_SIZE; j++) {
++			if (i < height && j < width) {
++				bit = data[(i * width + width - j) >> 3] &
++					(1 << ((i * width + width - j) & 0x7));
++				addr[i * CUR_WIDTH_SIZE + j] =
++					bit ? 0xffffffff : 0;
++			 } else {
++				addr[i * CUR_WIDTH_SIZE + j] = 0x0;
++			 }
++		}
++	}
++}
++
++static void ls2h_cur_set_hot(u16 x, u16 y)
++{
++	u32 hot = (x << 16) | (y << 8);
++	u32 con = ls2h_readl(LS2H_FB_CUR_CFG_REG) & 0xff;
++	ls2h_writel(hot | con, LS2H_FB_CUR_CFG_REG);
++}
++
++static int ls2h_fb_cursor(struct fb_info *info, struct fb_cursor *cursor)
++{
++	if (cursor->image.width > CUR_WIDTH_SIZE ||
++			cursor->image.height > CUR_HEIGHT_SIZE)
++		return -ENXIO;
++
++	ls2h_enable_cursor(OFF);
++
++	if (cursor->set & FB_CUR_SETPOS) {
++		u32 tmp;
++
++		tmp = (cursor->image.dx - info->var.xoffset) & 0xffff;
++		tmp |= (cursor->image.dy - info->var.yoffset) << 16;
++		ls2h_writel(tmp, LS2H_FB_CUR_LOC_ADDR_REG);
++	}
++
++	if (cursor->set & FB_CUR_SETSIZE)
++		ls2h_reset_cursor_image();
++
++	if (cursor->set & FB_CUR_SETHOT)
++		ls2h_cur_set_hot(cursor->hot.x, cursor->hot.y);
++
++	if (cursor->set & FB_CUR_SETCMAP)
++		;
++
++	if (cursor->set & (FB_CUR_SETSHAPE | FB_CUR_SETIMAGE)) {
++		int size = ((cursor->image.width + 7) >> 3) *
++			cursor->image.height;
++		int i;
++		u8 *data = kmalloc(32 * 32 * 4, GFP_ATOMIC);
++
++		if (data == NULL)
++			return -ENOMEM;
++
++		switch (cursor->rop) {
++		case ROP_XOR:
++			for (i = 0; i < size; i++)
++				data[i] = cursor->image.data[i] ^ cursor->mask[i];
++			break;
++		case ROP_COPY:
++		default:
++			for (i = 0; i < size; i++)
++				data[i] = cursor->image.data[i] & cursor->mask[i];
++			break;
++		}
++
++		ls2h_load_cursor_image(cursor->image.width,
++				       cursor->image.height, data);
++		kfree(data);
++	}
++
++	if (cursor->enable)
++		ls2h_enable_cursor(ON);
++
++	return 0;
++}
++
++struct cursor_req {
++	u32 x;
++	u32 y;
++};
++
++#define CURIOSET_CORLOR		0x4607
++#define CURIOSET_POSITION	0x4608
++#define CURIOLOAD_ARGB		0x4609
++#define CURIOLOAD_IMAGE		0x460A
++#define CURIOHIDE_SHOW		0x460B
++
++static int ls2h_fb_ioctl(struct fb_info *info, unsigned int cmd,
++		                        unsigned long arg)
++{
++	u32 tmp;
++	struct cursor_req req;
++	void __user *argp = (void __user *)arg;
++	u8 *cursor_base = (u8 *)DEFAULT_CURSOR_MEM;
++
++	switch (cmd) {
++	case CURIOSET_CORLOR:
++		break;
++	case CURIOSET_POSITION:
++		LS2H_DEBUG("CURIOSET_POSITION\n");
++		if (copy_from_user(&req, argp, sizeof(struct cursor_req)))
++			return -EFAULT;
++		tmp = (req.x - info->var.xoffset) & 0xffff;
++		tmp |= (req.y - info->var.yoffset) << 16;
++		ls2h_writel(tmp, LS2H_FB_CUR_LOC_ADDR_REG);
++		break;
++	case CURIOLOAD_ARGB:
++		LS2H_DEBUG("CURIOLOAD_ARGB\n");
++		if (copy_from_user(cursor_base, argp, 32 * 32 * 4))
++			return -EFAULT;
++		break;
++	case CURIOHIDE_SHOW:
++		LS2H_DEBUG("CURIOHIDE_SHOW:%s\n", arg ? "show" : "hide");
++		ls2h_enable_cursor(arg);
++		break;
++	default:
++		return -ENOTTY;
++
++	}
++
++	return 0;
++}
++
++
++/*
++ *  Pan or Wrap the Display
++ *
++ *  This call looks only at xoffset, yoffset and the FB_VMODE_YWRAP flag
++ */
++
++static int ls2h_fb_pan_display(struct fb_var_screeninfo *var,
++			struct fb_info *info)
++{
++	if (var->vmode & FB_VMODE_YWRAP) {
++		if (var->yoffset < 0
++			|| var->yoffset >= info->var.yres_virtual
++			|| var->xoffset)
++			return -EINVAL;
++	} else {
++		if (var->xoffset + var->xres > info->var.xres_virtual ||
++			var->yoffset + var->yres > info->var.yres_virtual)
++			return -EINVAL;
++	}
++	info->var.xoffset = var->xoffset;
++	info->var.yoffset = var->yoffset;
++	if (var->vmode & FB_VMODE_YWRAP)
++		info->var.vmode |= FB_VMODE_YWRAP;
++	else
++		info->var.vmode &= ~FB_VMODE_YWRAP;
++	return 0;
++}
++
++#ifndef MODULE
++static int __init ls2h_fb_setup(char *options)
++{
++	char *this_opt;
++	ls2h_fb_enable = 1;
++
++	if (!options || !*options)
++		return 1;
++
++	while ((this_opt = strsep(&options, ",")) != NULL) {
++		if (!*this_opt)
++			continue;
++		if (!strncmp(this_opt, "disable", 7))
++			ls2h_fb_enable = 0;
++		else
++			mode_option = this_opt;
++	}
++	return 1;
++}
++#endif	/* MODULE */
++
++static unsigned char *fb_do_probe_ddc_edid(struct i2c_adapter *adapter)
++{
++	unsigned char start[2];
++	unsigned char *buf = kmalloc(EDID_LENGTH, GFP_KERNEL);
++	struct i2c_msg msgs[] = {
++		{
++			.addr	= eeprom_info.addr,
++			.flags	= 0,
++			.len	= 2,
++			.buf	= start,
++		}, {
++			.addr	= eeprom_info.addr,
++			.flags	= I2C_M_RD,
++			.len	= EDID_LENGTH,
++			.buf	= buf,
++		}
++	};
++
++	if (!buf) {
++		dev_warn(&adapter->dev, "unable to allocate memory for EDID "
++			 "block.\n");
++		return NULL;
++	}
++
++	start[0] = start[1] = 0x0;
++
++	if (i2c_transfer(adapter, msgs, 2) == 2)
++		return buf;
++
++	dev_warn(&adapter->dev, "unable to read EDID block.\n");
++	kfree(buf);
++	return NULL;
++}
++
++static unsigned char *ls2h_fb_i2c_connector(struct ls2h_fb_par *fb_par)
++{
++	unsigned char *edid = NULL;
++
++	LS2H_DEBUG("edid entry\n");
++	if (eeprom_info.adapter)
++		edid = fb_do_probe_ddc_edid(eeprom_info.adapter);
++
++	if (edid)
++		fb_par->edid = edid;
++
++	return edid;
++}
++
++static void ls2h_find_init_mode(struct fb_info *info)
++{
++        struct fb_videomode mode;
++        struct fb_var_screeninfo var;
++        struct fb_monspecs *specs = &info->monspecs;
++	struct ls2h_fb_par *par = info->par;
++        int found = 0;
++	unsigned char *edid;
++
++        INIT_LIST_HEAD(&info->modelist);
++        memset(&mode, 0, sizeof(struct fb_videomode));
++	var.bits_per_pixel = DEFAULT_BITS_PER_PIXEL;
++
++	edid = ls2h_fb_i2c_connector(par);
++	if (!edid)
++		goto def;
++
++        fb_edid_to_monspecs(par->edid, specs);
++
++        if (specs->modedb == NULL) {
++		printk("ls2hfb: Unable to get Mode Database\n");
++		goto def;
++	}
++
++        fb_videomode_to_modelist(specs->modedb, specs->modedb_len,
++                                 &info->modelist);
++        if (specs->modedb != NULL) {
++                const struct fb_videomode *m;
++                if (!found) {
++                        m = fb_find_best_display(&info->monspecs, &info->modelist);
++                        mode = *m;
++                        found = 1;
++                }
++
++                fb_videomode_to_var(&var, &mode);
++        }
++
++        if (mode_option) {
++		printk("mode_option: %s\n", mode_option);
++                fb_find_mode(&var, info, mode_option, specs->modedb,
++                             specs->modedb_len, (found) ? &mode : NULL,
++                             info->var.bits_per_pixel);
++	}
++
++	info->var = var;
++	fb_destroy_modedb(specs->modedb);
++	specs->modedb = NULL;
++	return;
++def:
++	info->var = ls2h_fb_default;
++	return;
++}
++
++/* irq */
++static irqreturn_t ls2hfb_irq(int irq, void *dev_id)
++{
++	unsigned int val, cfg;
++	unsigned long flags;
++
++	spin_lock_irqsave(&fb_lock, flags);
++
++	val = ls2h_readl(LS2H_FB_INT_REG);
++	ls2h_writel(val & (0xffff << 16), LS2H_FB_INT_REG);
++
++	cfg = ls2h_readl(LS2H_FB_CFG_VGA_REG);
++	/* if underflow, reset VGA */
++	if (val & 0x280) {
++		ls2h_writel(0, LS2H_FB_CFG_VGA_REG);
++		ls2h_writel(cfg, LS2H_FB_CFG_VGA_REG);
++	}
++
++	spin_unlock_irqrestore(&fb_lock, flags);
++
++	return IRQ_HANDLED;
++}
++
++static struct fb_ops ls2h_fb_ops = {
++	.owner			= THIS_MODULE,
++	.fb_check_var		= ls2h_fb_check_var,
++	.fb_set_par		= ls2h_fb_set_par,
++	.fb_setcolreg		= ls2h_fb_setcolreg,
++	.fb_blank		= ls2h_fb_blank,
++	.fb_pan_display		= ls2h_fb_pan_display,
++	.fb_fillrect		= cfb_fillrect,
++	.fb_copyarea		= cfb_copyarea,
++	.fb_imageblit		= cfb_imageblit,
++	.fb_cursor		= ls2h_fb_cursor,
++	.fb_ioctl		= ls2h_fb_ioctl,
++	.fb_compat_ioctl	= ls2h_fb_ioctl,
++};
++
++/*
++ *  Initialisation
++ */
++static int ls2h_fb_probe(struct platform_device *dev)
++{
++	int irq;
++	struct fb_info *info;
++	int retval = -ENOMEM;
++	struct ls2h_fb_par *par;
++
++	irq = platform_get_irq(dev, 0);
++	if (irq < 0) {
++		dev_err(&dev->dev, "no irq for device\n");
++		return -ENOENT;
++	}
++
++	info = framebuffer_alloc(sizeof(u32) * 256, &dev->dev);
++	if (!info)
++		return -ENOMEM;
++
++	info->fix = ls2h_fb_fix;
++	info->node = -1;
++	info->fbops = &ls2h_fb_ops;
++	info->pseudo_palette = info->par;
++	info->flags = FBINFO_FLAG_DEFAULT;
++
++	par = kzalloc(sizeof(struct ls2h_fb_par), GFP_KERNEL);
++	if (!par) {
++		retval = -ENOMEM;
++		goto release_info;
++	}
++
++	info->par = par;
++	par->fb_info = info;
++	par->pdev = dev;
++	par->irq = irq;
++	ls2h_find_init_mode(info);
++
++	if (!videomemorysize) {
++		videomemorysize = info->var.xres_virtual *
++					info->var.yres_virtual *
++					info->var.bits_per_pixel / 8;
++	}
++
++	/*
++	 * For real video cards we use ioremap.
++	 */
++	videomemory = (void *)DEFAULT_FB_MEM;
++	video_dma = (dma_addr_t)DEFAULT_FB_DMA;
++
++	pr_info("VideoDMA=%llx\n", video_dma);
++	pr_info("VideoMemory=%p\n", videomemory);
++	pr_info("VideoMemorySize=%lx\n", videomemorysize);
++	memset(videomemory, 0, videomemorysize);
++
++	cursor_mem = (void *)DEFAULT_CURSOR_MEM;
++	cursor_dma = (dma_addr_t)DEFAULT_CURSOR_DMA;
++	memset(cursor_mem, 0x88FFFF00, cursor_size);
++
++	info->screen_base = (char __iomem *)videomemory;
++	info->fix.smem_start = DEFAULT_PHY_ADDR;
++	info->fix.smem_len = videomemorysize;
++
++	retval = fb_alloc_cmap(&info->cmap, 32, 0);
++	if (retval < 0) goto release_par;
++
++	info->fbops->fb_check_var(&info->var, info);
++	par->htotal = info->var.xres;
++	par->vtotal = info->var.yres;
++	retval = register_framebuffer(info);
++	if (retval < 0)
++		goto release_map;
++
++	retval = request_irq(irq, ls2hfb_irq, 0, dev->name, info);
++	if (retval) {
++		dev_err(&dev->dev, "cannot get irq %d - err %d\n", irq, retval);
++		goto unreg_info;
++	}
++
++	platform_set_drvdata(dev, info);
++
++	pr_info("fb%d: Loongson-2H frame buffer device, using %ldK of"
++			"video memory\n", info->node, videomemorysize >> 10);
++
++	return 0;
++unreg_info:
++	unregister_framebuffer(info);
++release_map:
++	fb_dealloc_cmap(&info->cmap);
++release_par:
++	kfree(par);
++release_info:
++	platform_set_drvdata(dev, NULL);
++	framebuffer_release(info);
++	return retval;
++}
++
++static int ls2h_fb_remove(struct platform_device *dev)
++{
++	struct fb_info *info = platform_get_drvdata(dev);
++	struct ls2h_fb_par *par = info->par;
++	int irq = par->irq;
++
++	free_irq(irq, info);
++	fb_dealloc_cmap(&info->cmap);
++	unregister_framebuffer(info);
++	platform_set_drvdata(dev, info);
++	framebuffer_release(info);
++	if (par->edid)
++		kfree(par->edid);
++	kfree(par);
++
++	return 0;
++}
++
++#ifdef CONFIG_PM
++/**
++ *	ls2h_fb_suspend - Suspend the device.
++ *	@dev: platform device
++ *	@msg: the suspend event code.
++ *
++ *      See Documentation/power/devices.txt for more information
++ */
++
++static u32 output_mode;
++
++static int ls2h_fb_suspend(struct platform_device *dev, pm_message_t msg)
++{
++	struct fb_info *info = platform_get_drvdata(dev);
++
++	console_lock();
++	fb_set_suspend(info, 1);
++	console_unlock();
++
++	output_mode = ls2h_readl(LS2H_FB_DVO_OUTPUT_REG);
++
++	return 0;
++}
++
++/**
++ *	ls2h_fb_resume - Resume the device.
++ *	@dev: platform device
++ *
++ *      See Documentation/power/devices.txt for more information
++ */
++static int ls2h_fb_resume(struct platform_device *dev)
++{
++	struct fb_info *info = platform_get_drvdata(dev);
++
++	ls2h_fb_set_par(info);
++	ls2h_writel(output_mode, LS2H_FB_DVO_OUTPUT_REG);
++
++	console_lock();
++	fb_set_suspend(info, 0);
++	console_unlock();
++
++	return 0;
++}
++#else
++#define ls2h_fb_suspend NULL
++#define ls2h_fb_resume NULL
++#endif /* CONFIG_PM */
++
++static struct platform_driver ls2h_fb_driver = {
++	.probe	= ls2h_fb_probe,
++	.remove = ls2h_fb_remove,
++	.suspend = ls2h_fb_suspend,
++	.resume = ls2h_fb_resume,
++	.driver = {
++		.name	= "ls2h-fb",
++	},
++};
++
++static const struct i2c_device_id eep_ids[] = {
++	{ "eeprom-loongson", 0 },
++	{ /* END OF LIST */ }
++};
++
++MODULE_DEVICE_TABLE(i2c, eep_ids);
++
++static int eep_probe(struct i2c_client *client, const struct i2c_device_id *id)
++{
++	eeprom_info.addr = client->addr;
++	eeprom_info.adapter = client->adapter;
++	return 0;
++}
++
++static int eep_remove(struct i2c_client *client)
++{
++	return 0;
++}
++
++static struct i2c_driver eep_driver = {
++	.driver = {
++		.name = "eep-edid",
++		.owner = THIS_MODULE,
++	},
++	.probe = eep_probe,
++	.remove = eep_remove,
++	.id_table = eep_ids,
++};
++
++static int __init ls2h_fb_init(void)
++{
++	int ret = 0;
++	struct pci_dev *pdev = NULL;
++
++#ifndef MODULE
++	char *option = NULL;
++
++	if (fb_get_options("ls2h-fb", &option))
++		return -ENODEV;
++	ls2h_fb_setup(option);
++#endif
++
++	if (!ls2h_fb_enable)
++		return -ENXIO;
++
++	/* Prefer to use PCI VGA Card */
++	pdev = pci_get_class(PCI_CLASS_DISPLAY_VGA << 8, NULL);
++	if (pdev)
++		return -ENXIO;
++
++	if (i2c_add_driver(&eep_driver)) {
++		pr_err("No eeprom device register!");
++		return -ENODEV;
++	}
++
++	ret = platform_driver_register(&ls2h_fb_driver);
++
++	return ret;
++}
++
++module_init(ls2h_fb_init);
++
++#ifdef MODULE
++static void __exit ls2h_fb_exit(void)
++{
++	platform_driver_unregister(&ls2h_fb_driver);
++	i2c_del_driver(&eep_driver);
++}
++
++module_exit(ls2h_fb_exit);
++
++MODULE_LICENSE("GPL");
++#endif				/* MODULE */
+diff --git a/lib/swiotlb.c b/lib/swiotlb.c
+index 76f29ecb..85ad3ebf 100644
+--- a/lib/swiotlb.c
++++ b/lib/swiotlb.c
+@@ -742,6 +742,7 @@ dma_addr_t swiotlb_map_page(struct device *dev, struct page *page,
+ {
+ 	phys_addr_t map, phys = page_to_phys(page) + offset;
+ 	dma_addr_t dev_addr = phys_to_dma(dev, phys);
++	int dev_swiotlb_force = dma_get_attr(DMA_ATTR_FORCE_SWIOTLB, attrs);
+
+ 	BUG_ON(dir == DMA_NONE);
+ 	/*
+@@ -749,7 +750,7 @@ dma_addr_t swiotlb_map_page(struct device *dev, struct page *page,
+ 	 * we can safely return the device addr and not worry about bounce
+ 	 * buffering it.
+ 	 */
+-	if (dma_capable(dev, dev_addr, size) && !swiotlb_force)
++	if (dma_capable(dev, dev_addr, size) && !swiotlb_force && !dev_swiotlb_force)
+ 		return dev_addr;
+
+ 	trace_swiotlb_bounced(dev, dev_addr, size, swiotlb_force);
+@@ -880,7 +881,7 @@ swiotlb_map_sg_attrs(struct device *hwdev, struct scatterlist *sgl, int nelems,
+ 		     enum dma_data_direction dir, unsigned long attrs)
+ {
+ 	struct scatterlist *sg;
+-	int i;
++	int i, dev_swiotlb_force = dma_get_attr(DMA_ATTR_FORCE_SWIOTLB, attrs);
+
+ 	BUG_ON(dir == DMA_NONE);
+
+@@ -888,7 +889,7 @@ swiotlb_map_sg_attrs(struct device *hwdev, struct scatterlist *sgl, int nelems,
+ 		phys_addr_t paddr = sg_phys(sg);
+ 		dma_addr_t dev_addr = phys_to_dma(hwdev, paddr);
+
+-		if (swiotlb_force ||
++		if (swiotlb_force || dev_swiotlb_force ||
+ 		    !dma_capable(hwdev, dev_addr, sg->length)) {
+ 			phys_addr_t map = map_single(hwdev, sg_phys(sg),
+ 						     sg->length, dir);
+--
+2.11.0
