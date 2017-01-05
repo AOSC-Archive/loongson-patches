@@ -1,0 +1,1258 @@
+From ceb163101de3ca8a419c65f1905d86a0c1a8c658 Mon Sep 17 00:00:00 2001
+From: Si Zhiying <sizhiying@loongson.cn>
+Date: Fri, 8 Nov 2013 17:28:48 +0800
+Subject: [PATCH 079/130] Workarounds for Loongson-3B
+
+1, Add sync before ll/sc and after branch target (bne)
+2, Add uncached swiotlb support to loongson platform
+3, Alternatively, add 3-cores-per-node support (Disable core-0 on each node)
+
+NOTICE: This patch is needed to fix ls3b05 CPU bug, if the CPU type
+is LS3B05, kernel option CONFIG_DMA_NONCOHERENT must be selected,
+otherwise dbench test will lead system dead.
+
+arch/mips/include/asm/dma-coherence.h modified by Junde Yhi.
+arch/mips/mm/c-r4k.c Hunk #4 modified by Junde Yhi.
+arch/mips/mm/dma-default.c Hunk #1 modified by Junde Yhi.
+drivers/net/ethernet/intel/igb/igb_main.c modified by Junde Yhi.
+drivers/net/ethernet/intel/ixgbe/ixgbe_main.c modified by Junde Yhi.
+
+Change-Id: I4440f5b171d7008aae36dd6bab93e7b133435bee
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/include/asm/dma-coherence.h              |   9 --
+ arch/mips/include/asm/futex.h                      |   2 +
+ arch/mips/include/asm/io.h                         |  12 ---
+ .../include/asm/mach-loongson64/dma-coherence.h    |  12 ++-
+ arch/mips/include/asm/mach-loongson64/topology.h   |   2 +-
+ arch/mips/include/asm/spinlock.h                   |  25 ++++-
+ arch/mips/include/asm/spinlock_types.h             |  27 +++++
+ arch/mips/kernel/syscall.c                         |   1 +
+ arch/mips/loongson64/common/env.c                  |  36 +++++--
+ arch/mips/loongson64/common/init.c                 |  22 +++++
+ arch/mips/loongson64/common/pm.c                   |  19 ++++
+ arch/mips/loongson64/loongson-3/irq.c              |   2 +
+ arch/mips/loongson64/loongson-3/ls2h-irq.c         |  10 +-
+ arch/mips/loongson64/loongson-3/rs780-irq.c        |  13 ++-
+ arch/mips/loongson64/loongson-3/smp.c              |  75 ++++++++++++++
+ arch/mips/mm/c-r4k.c                               |  11 +--
+ arch/mips/mm/cache.c                               |   5 +-
+ arch/mips/mm/dma-default.c                         |  11 +--
+ drivers/gpu/drm/radeon/radeon_object.c             | 110 ++++++++++++++-------
+ drivers/gpu/drm/radeon/radeon_ttm.c                |  33 +++++--
+ drivers/gpu/drm/ttm/ttm_bo.c                       |   4 +
+ drivers/net/ethernet/intel/e1000e/netdev.c         |   4 +
+ drivers/net/ethernet/intel/igb/igb_main.c          |   4 +
+ drivers/net/ethernet/intel/ixgbe/ixgbe_main.c      |   4 +
+ drivers/platform/mips/cpu_hwmon.c                  |   2 +-
+ drivers/platform/mips/wpce_fan.c                   |   2 +-
+ include/linux/types.h                              |   7 ++
+ lib/swiotlb.c                                      |  31 +++++-
+ net/socket.c                                       |   8 ++
+ sound/core/pcm_native.c                            |  15 +++
+ sound/core/sgbuf.c                                 |  10 +-
+ 31 files changed, 426 insertions(+), 102 deletions(-)
+
+diff --git a/arch/mips/include/asm/dma-coherence.h b/arch/mips/include/asm/dma-coherence.h
+index bc5e85d5..242cbb3c 100644
+--- a/arch/mips/include/asm/dma-coherence.h
++++ b/arch/mips/include/asm/dma-coherence.h
+@@ -14,19 +14,8 @@
+ 	IO_COHERENCE_ENABLED,
+ 	IO_COHERENCE_DISABLED,
+ };
+
+-#if defined(CONFIG_DMA_PERDEV_COHERENT)
+-/* Don't provide (hw_)coherentio to avoid misuse */
+-#elif defined(CONFIG_DMA_MAYBE_COHERENT)
+ extern enum coherent_io_user_state coherentio;
+ extern int hw_coherentio;
+-#else
+-#ifdef CONFIG_DMA_COHERENT
+-#define coherentio	IO_COHERENCE_ENABLED
+-#else
+-#define coherentio	IO_COHERENCE_DISABLED
+-#endif
+-#define hw_coherentio	0
+-#endif /* CONFIG_DMA_MAYBE_COHERENT */
+
+ #endif
+
+diff --git a/arch/mips/include/asm/futex.h b/arch/mips/include/asm/futex.h
+index 3e2741f2..77b041cf 100644
+--- a/arch/mips/include/asm/futex.h
++++ b/arch/mips/include/asm/futex.h
+@@ -73,6 +73,7 @@
+ 		"	.previous				\n"	\
+ 		"	.section __ex_table,\"a\"		\n"	\
+ 		"	"__UA_ADDR "\t(1b + 4), 4b		\n"	\
++		"	"__UA_ADDR "\t(1b + 8), 4b		\n"	\
+ 		"	"__UA_ADDR "\t(2b + 0), 4b		\n"	\
+ 		"	.previous				\n"	\
+ 		: "=r" (ret), "=&r" (oldval),				\
+@@ -234,6 +235,7 @@ futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
+ 		"	.previous					\n"
+ 		"	.section __ex_table,\"a\"			\n"
+ 		"	"__UA_ADDR "\t(1b + 4), 4b			\n"
++		"	"__UA_ADDR "\t(1b + 8), 4b			\n"
+ 		"	"__UA_ADDR "\t(2b + 0), 4b			\n"
+ 		"	.previous					\n"
+ 		: "+r" (ret), "=&r" (val), "=" GCC_OFF_SMALL_ASM() (*uaddr)
+diff --git a/arch/mips/include/asm/io.h b/arch/mips/include/asm/io.h
+index e3f757bf..b5a01ba9 100644
+--- a/arch/mips/include/asm/io.h
++++ b/arch/mips/include/asm/io.h
+@@ -585,7 +585,6 @@ static inline void memcpy_toio(volatile void __iomem *dst, const void *src, int
+  *
+  * This API used to be exported; it now is for arch code internal use only.
+  */
+-#if defined(CONFIG_DMA_NONCOHERENT) || defined(CONFIG_DMA_MAYBE_COHERENT)
+
+ extern void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
+ extern void (*_dma_cache_wback)(unsigned long start, unsigned long size);
+@@ -595,17 +594,6 @@ extern void (*_dma_cache_inv)(unsigned long start, unsigned long size);
+ #define dma_cache_wback(start, size)		_dma_cache_wback(start, size)
+ #define dma_cache_inv(start, size)		_dma_cache_inv(start, size)
+
+-#else /* Sane hardware */
+-
+-#define dma_cache_wback_inv(start,size) \
+-	do { (void) (start); (void) (size); } while (0)
+-#define dma_cache_wback(start,size)	\
+-	do { (void) (start); (void) (size); } while (0)
+-#define dma_cache_inv(start,size)	\
+-	do { (void) (start); (void) (size); } while (0)
+-
+-#endif /* CONFIG_DMA_NONCOHERENT || CONFIG_DMA_MAYBE_COHERENT */
+-
+ /*
+  * Read a 32-bit register that requires a 64-bit read cycle on the bus.
+  * Avoid interrupt mucking, just adjust the address for 4-byte access.
+diff --git a/arch/mips/include/asm/mach-loongson64/dma-coherence.h b/arch/mips/include/asm/mach-loongson64/dma-coherence.h
+index 1602a9e9..0675158e 100644
+--- a/arch/mips/include/asm/mach-loongson64/dma-coherence.h
++++ b/arch/mips/include/asm/mach-loongson64/dma-coherence.h
+@@ -69,15 +69,25 @@ static inline int plat_dma_supported(struct device *dev, u64 mask)
+ 	return 1;
+ }
+
++extern unsigned int Loongson3B_uncache;
++
+ static inline int plat_device_is_coherent(struct device *dev)
+ {
+ #ifdef CONFIG_DMA_NONCOHERENT
+ 	return 0;
+ #else
+-	return 1;
++	return !Loongson3B_uncache;
+ #endif /* CONFIG_DMA_NONCOHERENT */
+ }
+
++static inline int dma_force_mask(struct device *dev)
++{
++	*dev->dma_mask = DMA_BIT_MASK(38);
++	dev->coherent_dma_mask = DMA_BIT_MASK(38);
++
++	return 0;
++}
++
+ static inline void plat_post_dma_flush(struct device *dev)
+ {
+ }
+diff --git a/arch/mips/include/asm/mach-loongson64/topology.h b/arch/mips/include/asm/mach-loongson64/topology.h
+index 0d8f3b55..a6b9b8e7 100644
+--- a/arch/mips/include/asm/mach-loongson64/topology.h
++++ b/arch/mips/include/asm/mach-loongson64/topology.h
+@@ -3,7 +3,7 @@
+
+ #ifdef CONFIG_NUMA
+
+-#define cpu_to_node(cpu)	(cpu_logical_map(cpu) >> 2)
++#define cpu_to_node(cpu)	(cpu_logical_map(cpu) / loongson_sysconf.cores_per_node)
+ #define parent_node(node)	(node)
+ #define cpumask_of_node(node)	(&__node_data[(node)]->cpumask)
+
+diff --git a/arch/mips/include/asm/spinlock.h b/arch/mips/include/asm/spinlock.h
+index 36e08002..061e2809 100644
+--- a/arch/mips/include/asm/spinlock.h
++++ b/arch/mips/include/asm/spinlock.h
+@@ -118,6 +118,7 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
+ 		"	.subsection 2					\n"
+ 		"4:	andi	%[ticket], %[ticket], 0x1fff		\n"
+ 		"	sll	%[ticket], 5				\n"
++		"	sync				\n"
+ 		"							\n"
+ 		"6:	bnez	%[ticket], 6b				\n"
+ 		"	 subu	%[ticket], 1				\n"
+@@ -174,9 +175,24 @@ static inline void arch_spin_lock(arch_spinlock_t *lock)
+
+ static inline void arch_spin_unlock(arch_spinlock_t *lock)
+ {
++#ifndef CONFIG_CPU_LOONGSON3
+ 	unsigned int serving_now = lock->h.serving_now + 1;
+ 	wmb();
+ 	lock->h.serving_now = (u16)serving_now;
++#else
++	int tmp1, tmp2;
++
++	__asm__ __volatile__(
++	"1:	sync					\n"
++	"	ll	%1, %3				\n"
++	"	addiu   %2, %1, 1			\n"
++	"	ins	%1, %2, 0, 16			\n"
++	"	sc	%1, %0				\n"
++	"	beqz	%1, 1b				\n"
++	: "=m" (lock->lock), "=&r" (tmp1), "=&r" (tmp2)
++	: "m" (lock->lock)
++	: "memory");
++#endif
+ 	nudge_writes();
+ }
+
+@@ -224,9 +240,10 @@ static inline unsigned int arch_spin_trylock(arch_spinlock_t *lock)
+ 		"	sc	%[ticket], %[ticket_ptr]		\n"
+ 		"	beqz	%[ticket], 1b				\n"
+ 		"	 li	%[ticket], 1				\n"
+-		"2:							\n"
++		"2:	sync						\n"
+ 		"	.subsection 2					\n"
+-		"3:	b	2b					\n"
++		"3:	sync					\n"
++		"	b	2b					\n"
+ 		"	 li	%[ticket], 0				\n"
+ 		"	.previous					\n"
+ 		"	.set pop					\n"
+@@ -472,7 +489,7 @@ static inline int arch_read_trylock(arch_rwlock_t *rw)
+ 		"	.set	reorder					\n"
+ 		__WEAK_LLSC_MB
+ 		"	li	%2, 1					\n"
+-		"2:							\n"
++		"2:	sync						\n"
+ 		: "=" GCC_OFF_SMALL_ASM() (rw->lock), "=&r" (tmp), "=&r" (ret)
+ 		: GCC_OFF_SMALL_ASM() (rw->lock)
+ 		: "memory");
+@@ -532,7 +549,7 @@ static inline int arch_write_trylock(arch_rwlock_t *rw)
+ 			"	lui	%1, 0x8000			\n"
+ 			"	sc	%1, %0				\n"
+ 			"	li	%2, 1				\n"
+-			"2:						\n"
++			"2:	sync					\n"
+ 			: "=" GCC_OFF_SMALL_ASM() (rw->lock), "=&r" (tmp),
+ 			  "=&r" (ret)
+ 			: GCC_OFF_SMALL_ASM() (rw->lock)
+diff --git a/arch/mips/include/asm/spinlock_types.h b/arch/mips/include/asm/spinlock_types.h
+index 9b2528e6..923531ff 100644
+--- a/arch/mips/include/asm/spinlock_types.h
++++ b/arch/mips/include/asm/spinlock_types.h
+@@ -9,6 +9,7 @@
+
+ #include <asm/byteorder.h>
+
++#ifndef CONFIG_CPU_LOONGSON3
+ typedef union {
+ 	/*
+ 	 * bits	 0..15 : serving_now
+@@ -25,12 +26,38 @@ typedef union {
+ #endif
+ 	} h;
+ } arch_spinlock_t;
++#else
++typedef union {
++	/*
++	 * bits	 0..15 : serving_now
++	 * bits 16..31 : ticket
++	 */
++	u32 lock;
++	struct {
++#ifdef __BIG_ENDIAN
++		u16 ticket;
++		u16 serving_now;
++#else
++		u16 serving_now;
++		u16 ticket;
++#endif
++		u32 padding;
++	} h;
++} __attribute__((aligned(8))) arch_spinlock_t;
++#endif
+
+ #define __ARCH_SPIN_LOCK_UNLOCKED	{ .lock = 0 }
+
++#ifndef CONFIG_CPU_LOONGSON3
+ typedef struct {
+ 	volatile unsigned int lock;
+ } arch_rwlock_t;
++#else
++typedef struct {
++	volatile unsigned int lock;
++	volatile unsigned int padding;
++} __attribute__((aligned(8))) arch_rwlock_t;
++#endif
+
+ #define __ARCH_RW_LOCK_UNLOCKED		{ 0 }
+
+diff --git a/arch/mips/kernel/syscall.c b/arch/mips/kernel/syscall.c
+index 6c09736d..70babfc8 100644
+--- a/arch/mips/kernel/syscall.c
++++ b/arch/mips/kernel/syscall.c
+@@ -156,6 +156,7 @@ static inline int mips_atomic_set(unsigned long addr, unsigned long new)
+ 		"	.previous					\n"
+ 		"	.section __ex_table,\"a\"			\n"
+ 		"	"STR(PTR)"	(1b + 4), 5b			\n"
++		"	"STR(PTR)"	(1b + 8), 5b			\n"
+ 		"	"STR(PTR)"	(2b + 0), 5b			\n"
+ 		"	.previous					\n"
+ 		"	.set	mips0					\n"
+diff --git a/arch/mips/loongson64/common/env.c b/arch/mips/loongson64/common/env.c
+index ce8cad5f..1f8e1604 100644
+--- a/arch/mips/loongson64/common/env.c
++++ b/arch/mips/loongson64/common/env.c
+@@ -27,6 +27,7 @@ u32 cpu_clock_freq;
+ EXPORT_SYMBOL(cpu_clock_freq);
+ struct efi_memory_map_loongson *loongson_memmap;
+ struct loongson_system_configuration loongson_sysconf;
++EXPORT_SYMBOL(loongson_sysconf);
+
+ u64 loongson_chipcfg[MAX_PACKAGES] = {0xffffffffbfc00180};
+ u64 loongson_chiptemp[MAX_PACKAGES];
+@@ -35,6 +36,8 @@ u64 loongson_freqctrl[MAX_PACKAGES];
+ unsigned long long smp_group[4];
+ unsigned int has_systab = 0;
+ unsigned long systab_addr;
++unsigned int Loongson3B_uncache = 0;
++EXPORT_SYMBOL(Loongson3B_uncache);
+
+ struct platform_controller_hub *loongson_pch;
+ extern struct platform_controller_hub ls2h_pch;
+@@ -48,6 +51,16 @@ do {									\
+ 		tmp = kstrtou32((char *)p + strlen(option"="), 10, &res); \
+ } while (0)
+
++int loongson3b_is_good(void)
++{
++	/* dummy register is read only on good loongson3b */
++	unsigned int value = 0x5a5a5a5a;
++	unsigned long dummy = 0xffffffffbfe001a8;
++
++	writel(value, (volatile void *)dummy);
++	return (readl((volatile void *)dummy) != value);
++}
++
+ void __init prom_init_env(void)
+ {
+ 	/* pmon passes arguments in 32bit pointers */
+@@ -125,12 +138,6 @@ void __init prom_init_env(void)
+ 		break;
+ 	case Legacy_3B:
+ 	case Loongson_3B:
+-		loongson_sysconf.cores_per_node = 4; /* One chip has 2 nodes */
+-		loongson_sysconf.cores_per_package = 8;
+-		smp_group[0] = 0x900000003ff01000;
+-		smp_group[1] = 0x900010003ff05000;
+-		smp_group[2] = 0x900020003ff09000;
+-		smp_group[3] = 0x900030003ff0d000;
+ 		loongson_chipcfg[0] = 0x900000001fe00180;
+ 		loongson_chipcfg[1] = 0x900020001fe00180;
+ 		loongson_chipcfg[2] = 0x900040001fe00180;
+@@ -145,6 +152,23 @@ void __init prom_init_env(void)
+ 		loongson_freqctrl[3] = 0x900060001fe001d0;
+ 		loongson_sysconf.ht_control_base = 0x90001EFDFB000000;
+ 		loongson_sysconf.workarounds = WORKAROUND_CPUHOTPLUG;
++		if (ecpu->nr_cpus % 6 == 0) {   // 6-core version
++			loongson_sysconf.cores_per_node = 3; /* One chip has 2 nodes */
++			loongson_sysconf.cores_per_package = 6;
++			smp_group[0] = 0x900000003ff01100;
++			smp_group[1] = 0x900010003ff05100;
++			smp_group[2] = 0x900020003ff09100;
++			smp_group[3] = 0x900030003ff0d100;
++		} else {
++			loongson_sysconf.cores_per_node = 4; /* One chip has 2 nodes */
++			loongson_sysconf.cores_per_package = 8;
++			smp_group[0] = 0x900000003ff01000;
++			smp_group[1] = 0x900010003ff05000;
++			smp_group[2] = 0x900020003ff09000;
++			smp_group[3] = 0x900030003ff0d000;
++			if (!ecpu->cpu_startup_core_id && !loongson3b_is_good())
++				Loongson3B_uncache = 1;
++		}
+ 		break;
+ 	default:
+ 		loongson_sysconf.cores_per_node = 1;
+diff --git a/arch/mips/loongson64/common/init.c b/arch/mips/loongson64/common/init.c
+index bb557286..5d58701d 100644
+--- a/arch/mips/loongson64/common/init.c
++++ b/arch/mips/loongson64/common/init.c
+@@ -17,6 +17,13 @@
+ #include <loongson.h>
+ #include <loongson-pch.h>
+
++#define HT_uncache_enable_reg0	*(volatile unsigned int *)(loongson_sysconf.ht_control_base + 0xF0)
++#define HT_uncache_base_reg0	*(volatile unsigned int *)(loongson_sysconf.ht_control_base + 0xF4)
++#define HT_uncache_enable_reg1	*(volatile unsigned int *)(loongson_sysconf.ht_control_base + 0xF8)
++#define HT_uncache_base_reg1	*(volatile unsigned int *)(loongson_sysconf.ht_control_base + 0xFC)
++
++extern enum loongson_cpu_type cputype;
++extern unsigned int Loongson3B_uncache;
+ /* Loongson CPU address windows config space base address */
+ unsigned long __maybe_unused _loongson_addrwincfg_base;
+
+@@ -57,6 +64,21 @@ void __init prom_init(void)
+ 	prom_init_uart_base();
+ 	register_smp_ops(&loongson3_smp_ops);
+ 	board_nmi_handler_setup = mips_nmi_setup;
++#ifdef CONFIG_CPU_LOONGSON3
++	if (Loongson3B_uncache) {
++		/* set HT-access uncache */
++		HT_uncache_enable_reg0	= 0xc0000000;
++		HT_uncache_base_reg0	= 0x0080fff0;
++
++		HT_uncache_enable_reg1	= 0xc0000000;
++		HT_uncache_base_reg1	= 0x00008000;
++	} else {
++		/* set HT-access cache */
++		HT_uncache_enable_reg0	= 0x0;
++		HT_uncache_enable_reg1	= 0x0;
++		printk("SET HT_DMA CACHED\n");
++	}
++#endif /* CONFIG_CPU_LOONGSON3 */
+ }
+
+ void __init prom_free_prom_memory(void)
+diff --git a/arch/mips/loongson64/common/pm.c b/arch/mips/loongson64/common/pm.c
+index 908d63f4..4e68e703 100644
+--- a/arch/mips/loongson64/common/pm.c
++++ b/arch/mips/loongson64/common/pm.c
+@@ -21,6 +21,12 @@
+ #include <loongson.h>
+ #include <mc146818rtc.h>
+
++#define HT_uncache_enable_reg0	*(volatile unsigned int *)(loongson_sysconf.ht_control_base + 0xF0)
++#define HT_uncache_base_reg0	*(volatile unsigned int *)(loongson_sysconf.ht_control_base + 0xF4)
++#define HT_uncache_enable_reg1	*(volatile unsigned int *)(loongson_sysconf.ht_control_base + 0xF8)
++#define HT_uncache_base_reg1	*(volatile unsigned int *)(loongson_sysconf.ht_control_base + 0xFC)
++
++extern unsigned int Loongson3B_uncache;
+ static unsigned int __maybe_unused cached_master_mask;	/* i8259A */
+ static unsigned int __maybe_unused cached_slave_mask;
+ static unsigned int __maybe_unused cached_bonito_irq_mask; /* bonito */
+@@ -219,6 +225,19 @@ static int loongson_pm_enter(suspend_state_t state)
+ 		cmos_write64(0x0, 0x40);  /* clear pc in cmos */
+ 		cmos_write64(0x0, 0x48);  /* clear sp in cmos */
+ 		pm_set_resume_via_firmware();
++		if (Loongson3B_uncache) {
++			/* set HT-access uncache */
++			HT_uncache_enable_reg0	= 0xc0000000;
++			HT_uncache_base_reg0	= 0x0080fff0;
++
++			HT_uncache_enable_reg1	= 0xc0000000;
++			HT_uncache_base_reg1	= 0x00008000;
++		} else {
++			/* set HT-access cache */
++			HT_uncache_enable_reg0	= 0x0;
++			HT_uncache_enable_reg1	= 0x0;
++			printk("SET HT_DMA CACHED\n");
++		}
+ #else
+ 		loongson_suspend_enter();
+ #endif
+diff --git a/arch/mips/loongson64/loongson-3/irq.c b/arch/mips/loongson64/loongson-3/irq.c
+index 5ffb7606..b7679669 100644
+--- a/arch/mips/loongson64/loongson-3/irq.c
++++ b/arch/mips/loongson64/loongson-3/irq.c
+@@ -71,6 +71,7 @@ static inline void mask_loongson_irq(struct irq_data *d)
+ 		u64 introuter_lpc_addr = smp_group[node_id] |
+ 			(u64)(&LOONGSON_INT_ROUTER_LPC);
+
++		if (loongson_sysconf.cores_per_node == 3) core_id++;
+ 		*(volatile u32 *)intenclr_addr = 1 << 10;
+ 		*(volatile u8 *)introuter_lpc_addr = 0x10 + (1<<core_id);
+ 	}
+@@ -88,6 +89,7 @@ static inline void unmask_loongson_irq(struct irq_data *d)
+ 		u64 introuter_lpc_addr = smp_group[node_id] |
+ 			(u64)(&LOONGSON_INT_ROUTER_LPC);
+
++		if (loongson_sysconf.cores_per_node == 3) core_id++;
+ 		*(volatile u32 *)intenset_addr = 1 << 10;
+ 		*(volatile u8 *)introuter_lpc_addr = 0x10 + (1<<core_id);
+ 	}
+diff --git a/arch/mips/loongson64/loongson-3/ls2h-irq.c b/arch/mips/loongson64/loongson-3/ls2h-irq.c
+index 3cebb694..d96cfe89 100644
+--- a/arch/mips/loongson64/loongson-3/ls2h-irq.c
++++ b/arch/mips/loongson64/loongson-3/ls2h-irq.c
+@@ -184,10 +184,16 @@ void ls2h_irq_dispatch(void)
+ void ls2h_irq_router_init(void)
+ {
+ 	/* Route INTn0 to Core0 INT1 */
+-	LOONGSON_INT_ROUTER_ENTRY(0) = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 1);
++	if (loongson_sysconf.cores_per_node == 4)
++		LOONGSON_INT_ROUTER_ENTRY(0) = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 1);
++	else
++		LOONGSON_INT_ROUTER_ENTRY(0) = LOONGSON_INT_COREx_INTy(1, 1);
+
+ 	/* Route the LPC interrupt to Core0 INT0 */
+-	LOONGSON_INT_ROUTER_LPC = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 0);
++	if (loongson_sysconf.cores_per_node == 4)
++		LOONGSON_INT_ROUTER_LPC = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 0);
++	else
++		LOONGSON_INT_ROUTER_LPC = LOONGSON_INT_COREx_INTy(1, 0);
+
+ 	/* Enable UART and INT0 interrupts */
+ 	LOONGSON_INT_ROUTER_INTENSET = (0x1 << 10) | (1 << 0);
+diff --git a/arch/mips/loongson64/loongson-3/rs780-irq.c b/arch/mips/loongson64/loongson-3/rs780-irq.c
+index 81be6c61..c6caa3da 100644
+--- a/arch/mips/loongson64/loongson-3/rs780-irq.c
++++ b/arch/mips/loongson64/loongson-3/rs780-irq.c
+@@ -60,10 +60,17 @@ void rs780_irq_router_init(void)
+ 	int i;
+
+ 	/* route LPC int to cpu core0 int 0 */
+-	LOONGSON_INT_ROUTER_LPC = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 0);
++	if (loongson_sysconf.cores_per_node == 4)
++		LOONGSON_INT_ROUTER_LPC = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 0);
++	else
++		LOONGSON_INT_ROUTER_LPC = LOONGSON_INT_COREx_INTy(1, 0);
+ 	/* route HT1 int0 ~ int7 to cpu core0 INT1*/
+-	for (i = 0; i < 8; i++)
+-		LOONGSON_INT_ROUTER_HT1(i) = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 1);
++	for (i = 0; i < 8; i++) {
++		if (loongson_sysconf.cores_per_node == 4)
++			LOONGSON_INT_ROUTER_HT1(i) = LOONGSON_INT_COREx_INTy(loongson_sysconf.boot_cpu_id, 1);
++		else
++			LOONGSON_INT_ROUTER_HT1(i) = LOONGSON_INT_COREx_INTy(1, 1);
++	}
+ 	/* enable HT1 interrupt */
+ 	LOONGSON_HT1_INTN_EN(0) = 0xffffffff;
+ 	/* enable router interrupt intenset */
+diff --git a/arch/mips/loongson64/loongson-3/smp.c b/arch/mips/loongson64/loongson-3/smp.c
+index bb9dbda0..f19c17be 100644
+--- a/arch/mips/loongson64/loongson-3/smp.c
++++ b/arch/mips/loongson64/loongson-3/smp.c
+@@ -96,6 +96,21 @@ static void ipi_set0_regs_init(void)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + SET0);
+ 	ipi_set0_regs[15] = (void *)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE3_OFFSET + SET0);
++
++	if (loongson_sysconf.cores_per_node == 4) return;
++
++	ipi_set0_regs[0] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE0_OFFSET + SET0);
++	ipi_set0_regs[1] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE1_OFFSET + SET0);
++	ipi_set0_regs[2] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE2_OFFSET + SET0);
++	ipi_set0_regs[3] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE0_OFFSET + SET0);
++	ipi_set0_regs[4] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE1_OFFSET + SET0);
++	ipi_set0_regs[5] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE2_OFFSET + SET0);
++	ipi_set0_regs[6] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE0_OFFSET + SET0);
++	ipi_set0_regs[7] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE1_OFFSET + SET0);
++	ipi_set0_regs[8] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE2_OFFSET + SET0);
++	ipi_set0_regs[9] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE0_OFFSET + SET0);
++	ipi_set0_regs[10] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE1_OFFSET + SET0);
++	ipi_set0_regs[11] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + SET0);
+ }
+
+ static void ipi_clear0_regs_init(void)
+@@ -132,6 +147,21 @@ static void ipi_clear0_regs_init(void)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + CLEAR0);
+ 	ipi_clear0_regs[15] = (void *)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE3_OFFSET + CLEAR0);
++
++	if (loongson_sysconf.cores_per_node == 4) return;
++
++	ipi_clear0_regs[0] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE0_OFFSET + CLEAR0);
++	ipi_clear0_regs[1] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE1_OFFSET + CLEAR0);
++	ipi_clear0_regs[2] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE2_OFFSET + CLEAR0);
++	ipi_clear0_regs[3] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE0_OFFSET + CLEAR0);
++	ipi_clear0_regs[4] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE1_OFFSET + CLEAR0);
++	ipi_clear0_regs[5] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE2_OFFSET + CLEAR0);
++	ipi_clear0_regs[6] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE0_OFFSET + CLEAR0);
++	ipi_clear0_regs[7] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE1_OFFSET + CLEAR0);
++	ipi_clear0_regs[8] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE2_OFFSET + CLEAR0);
++	ipi_clear0_regs[9] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE0_OFFSET + CLEAR0);
++	ipi_clear0_regs[10] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE1_OFFSET + CLEAR0);
++	ipi_clear0_regs[11] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + CLEAR0);
+ }
+
+ static void ipi_status0_regs_init(void)
+@@ -168,6 +198,21 @@ static void ipi_status0_regs_init(void)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + STATUS0);
+ 	ipi_status0_regs[15] = (void *)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE3_OFFSET + STATUS0);
++
++	if (loongson_sysconf.cores_per_node == 4) return;
++
++	ipi_status0_regs[0] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE0_OFFSET + STATUS0);
++	ipi_status0_regs[1] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE1_OFFSET + STATUS0);
++	ipi_status0_regs[2] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE2_OFFSET + STATUS0);
++	ipi_status0_regs[3] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE0_OFFSET + STATUS0);
++	ipi_status0_regs[4] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE1_OFFSET + STATUS0);
++	ipi_status0_regs[5] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE2_OFFSET + STATUS0);
++	ipi_status0_regs[6] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE0_OFFSET + STATUS0);
++	ipi_status0_regs[7] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE1_OFFSET + STATUS0);
++	ipi_status0_regs[8] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE2_OFFSET + STATUS0);
++	ipi_status0_regs[9] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE0_OFFSET + STATUS0);
++	ipi_status0_regs[10] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE1_OFFSET + STATUS0);
++	ipi_status0_regs[11] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + STATUS0);
+ }
+
+ static void ipi_en0_regs_init(void)
+@@ -204,6 +249,21 @@ static void ipi_en0_regs_init(void)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + EN0);
+ 	ipi_en0_regs[15] = (void *)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE3_OFFSET + EN0);
++
++	if (loongson_sysconf.cores_per_node == 4) return;
++
++	ipi_en0_regs[0] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE0_OFFSET + EN0);
++	ipi_en0_regs[1] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE1_OFFSET + EN0);
++	ipi_en0_regs[2] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE2_OFFSET + EN0);
++	ipi_en0_regs[3] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE0_OFFSET + EN0);
++	ipi_en0_regs[4] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE1_OFFSET + EN0);
++	ipi_en0_regs[5] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE2_OFFSET + EN0);
++	ipi_en0_regs[6] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE0_OFFSET + EN0);
++	ipi_en0_regs[7] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE1_OFFSET + EN0);
++	ipi_en0_regs[8] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE2_OFFSET + EN0);
++	ipi_en0_regs[9] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE0_OFFSET + EN0);
++	ipi_en0_regs[10] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE1_OFFSET + EN0);
++	ipi_en0_regs[11] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + EN0);
+ }
+
+ static void ipi_mailbox_buf_init(void)
+@@ -240,6 +300,21 @@ static void ipi_mailbox_buf_init(void)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + BUF);
+ 	ipi_mailbox_buf[15] = (void *)
+ 		(SMP_CORE_GROUP3_BASE + SMP_CORE3_OFFSET + BUF);
++
++	if (loongson_sysconf.cores_per_node == 4) return;
++
++	ipi_mailbox_buf[0] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE0_OFFSET + BUF);
++	ipi_mailbox_buf[1] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE1_OFFSET + BUF);
++	ipi_mailbox_buf[2] = (void *)(SMP_CORE_GROUP0_BASE + SMP_CORE2_OFFSET + BUF);
++	ipi_mailbox_buf[3] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE0_OFFSET + BUF);
++	ipi_mailbox_buf[4] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE1_OFFSET + BUF);
++	ipi_mailbox_buf[5] = (void *)(SMP_CORE_GROUP1_BASE + SMP_CORE2_OFFSET + BUF);
++	ipi_mailbox_buf[6] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE0_OFFSET + BUF);
++	ipi_mailbox_buf[7] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE1_OFFSET + BUF);
++	ipi_mailbox_buf[8] = (void *)(SMP_CORE_GROUP2_BASE + SMP_CORE2_OFFSET + BUF);
++	ipi_mailbox_buf[9] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE0_OFFSET + BUF);
++	ipi_mailbox_buf[10] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE1_OFFSET + BUF);
++	ipi_mailbox_buf[11] = (void *)(SMP_CORE_GROUP3_BASE + SMP_CORE2_OFFSET + BUF);
+ }
+
+ /*
+diff --git a/arch/mips/mm/c-r4k.c b/arch/mips/mm/c-r4k.c
+index b1946920..37f718ca 100644
+--- a/arch/mips/mm/c-r4k.c
++++ b/arch/mips/mm/c-r4k.c
+@@ -708,8 +708,6 @@ static void r4k_flush_icache_range(unsigned long start, unsigned long end)
+ 	return __r4k_flush_icache_range(start, end, true);
+ }
+
+-#if defined(CONFIG_DMA_NONCOHERENT) || defined(CONFIG_DMA_MAYBE_COHERENT)
+-
+ static void r4k_dma_cache_wback_inv(unsigned long addr, unsigned long size)
+ {
+ 	/* Catch bad driver code */
+@@ -779,7 +777,6 @@ static void r4k_dma_cache_inv(unsigned long addr, unsigned long size)
+ 	bc_inv(addr, size);
+ 	__sync();
+ }
+-#endif /* CONFIG_DMA_NONCOHERENT || CONFIG_DMA_MAYBE_COHERENT */
+
+ struct flush_cache_sigtramp_args {
+ 	struct mm_struct *mm;
+@@ -1679,6 +1676,7 @@ void r4k_cache_init(void)
+ {
+ 	extern void build_clear_page(void);
+ 	extern void build_copy_page(void);
++	extern unsigned int Loongson3B_uncache;
+ 	struct cpuinfo_mips *c = &current_cpu_data;
+
+ 	probe_pcache();
+@@ -1938,13 +1938,9 @@ void r4k_cache_init(void)
+ 	__flush_icache_user_range	= r4k_flush_icache_user_range;
+ 	__local_flush_icache_user_range	= local_r4k_flush_icache_user_range;
+
+-#if defined(CONFIG_DMA_NONCOHERENT) || defined(CONFIG_DMA_MAYBE_COHERENT)
+-# if defined(CONFIG_DMA_PERDEV_COHERENT)
+-	if (0) {
+-# else
+-	if ((coherentio == IO_COHERENCE_ENABLED) ||
+-	    ((coherentio == IO_COHERENCE_DEFAULT) && hw_coherentio)) {
+-# endif
++	if ((coherentio == IO_COHERENCE_ENABLED) ||
++	    ((coherentio == IO_COHERENCE_DEFAULT) && hw_coherentio) ||
++     !Loongson3B_uncache) {
+ 		_dma_cache_wback_inv	= (void *)cache_noop;
+ 		_dma_cache_wback	= (void *)cache_noop;
+ 		_dma_cache_inv		= (void *)cache_noop;
+@@ -1953,7 +1953,6 @@ void r4k_cache_init(void)
+ 		_dma_cache_wback	= r4k_dma_cache_wback_inv;
+ 		_dma_cache_inv		= r4k_dma_cache_inv;
+ 	}
+-#endif
+
+ 	build_clear_page();
+ 	build_copy_page();
+@@ -1996,6 +1996,9 @@ void r4k_cache_init(void)
+ 		current_cpu_data.options |= MIPS_CPU_INCLUSIVE_CACHES;
+ 		break;
+ 	case CPU_LOONGSON3:
++		if (Loongson3B_uncache)
++			break;
++
+ 		/* Loongson-3 maintains cache coherency by hardware */
+ 		__flush_cache_all	= cache_noop;
+ 		__flush_cache_vmap	= cache_noop;
+diff --git a/arch/mips/mm/cache.c b/arch/mips/mm/cache.c
+index aab218c3..ab7be05c 100644
+--- a/arch/mips/mm/cache.c
++++ b/arch/mips/mm/cache.c
+@@ -50,17 +50,14 @@ EXPORT_SYMBOL_GPL(local_flush_data_cache_page);
+ EXPORT_SYMBOL(flush_data_cache_page);
+ EXPORT_SYMBOL(flush_icache_all);
+
+-#if defined(CONFIG_DMA_NONCOHERENT) || defined(CONFIG_DMA_MAYBE_COHERENT)
+-
+ /* DMA cache operations. */
+ void (*_dma_cache_wback_inv)(unsigned long start, unsigned long size);
+ void (*_dma_cache_wback)(unsigned long start, unsigned long size);
+ void (*_dma_cache_inv)(unsigned long start, unsigned long size);
+
++EXPORT_SYMBOL(_dma_cache_inv);
+ EXPORT_SYMBOL(_dma_cache_wback_inv);
+
+-#endif /* CONFIG_DMA_NONCOHERENT || CONFIG_DMA_MAYBE_COHERENT */
+-
+ /*
+  * We could optimize the case where the cache argument is not BCACHE but
+  * that seems very atypical use ...
+diff --git a/arch/mips/mm/dma-default.c b/arch/mips/mm/dma-default.c
+index 730d394c..a83d112b 100644
+--- a/arch/mips/mm/dma-default.c
++++ b/arch/mips/mm/dma-default.c
+@@ -24,7 +24,6 @@
+
+ #include <dma-coherence.h>
+
+-#if defined(CONFIG_DMA_MAYBE_COHERENT) && !defined(CONFIG_DMA_PERDEV_COHERENT)
+ /* User defined DMA coherency from command line. */
+ enum coherent_io_user_state coherentio = IO_COHERENCE_DEFAULT;
+ EXPORT_SYMBOL_GPL(coherentio);
+@@ -44,10 +43,8 @@ static int __init setnocoherentio(char *str)
+ 	return 0;
+ }
+ early_param("nocoherentio", setnocoherentio);
+-#endif
+
+-static inline struct page *dma_addr_to_page(struct device *dev,
+-	dma_addr_t dma_addr)
++struct page *dma_addr_to_page(struct device *dev, dma_addr_t dma_addr)
+ {
+ 	return pfn_to_page(
+ 		plat_dma_addr_to_phys(dev, dma_addr) >> PAGE_SHIFT);
+@@ -231,8 +228,7 @@ static int mips_dma_mmap(struct device *dev, struct vm_area_struct *vma,
+ 	return ret;
+ }
+
+-static inline void __dma_sync_virtual(void *addr, size_t size,
+-	enum dma_data_direction direction)
++void __dma_sync_virtual(void *addr, size_t size, enum dma_data_direction direction)
+ {
+ 	switch (direction) {
+ 	case DMA_TO_DEVICE:
+@@ -258,8 +254,7 @@ static inline void __dma_sync_virtual(void *addr, size_t size,
+  * If highmem is not configured then the bulk of this loop gets
+  * optimized out.
+  */
+-static inline void __dma_sync(struct page *page,
+-	unsigned long offset, size_t size, enum dma_data_direction direction)
++void __dma_sync(struct page *page, unsigned long offset, size_t size, enum dma_data_direction direction)
+ {
+ 	size_t left = size;
+
+diff --git a/drivers/gpu/drm/radeon/radeon_object.c b/drivers/gpu/drm/radeon/radeon_object.c
+index fb6ad143..81d5c672 100644
+--- a/drivers/gpu/drm/radeon/radeon_object.c
++++ b/drivers/gpu/drm/radeon/radeon_object.c
+@@ -118,48 +118,90 @@ void radeon_ttm_placement_from_domain(struct radeon_bo *rbo, u32 domain)
+ 					     TTM_PL_FLAG_VRAM;
+ 	}
+
+-	if (domain & RADEON_GEM_DOMAIN_GTT) {
+-		if (rbo->flags & RADEON_GEM_GTT_UC) {
+-			rbo->placements[c].fpfn = 0;
+-			rbo->placements[c++].flags = TTM_PL_FLAG_UNCACHED |
+-				TTM_PL_FLAG_TT;
+-
+-		} else if ((rbo->flags & RADEON_GEM_GTT_WC) ||
+-			   (rbo->rdev->flags & RADEON_IS_AGP)) {
+-			rbo->placements[c].fpfn = 0;
+-			rbo->placements[c++].flags = TTM_PL_FLAG_WC |
+-				TTM_PL_FLAG_UNCACHED |
+-				TTM_PL_FLAG_TT;
+-		} else {
++	if (plat_device_is_coherent(NULL)) {
++		if (domain & RADEON_GEM_DOMAIN_GTT) {
++			if (rbo->flags & RADEON_GEM_GTT_UC) {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_UNCACHED |
++					TTM_PL_FLAG_TT;
++			} else if ((rbo->flags & RADEON_GEM_GTT_WC) ||
++				   (rbo->rdev->flags & RADEON_IS_AGP)) {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_WC |
++					TTM_PL_FLAG_UNCACHED |
++					TTM_PL_FLAG_TT;
++			} else {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_CACHED |
++					TTM_PL_FLAG_TT;
++			}
++		}
++		if (domain & RADEON_GEM_DOMAIN_CPU) {
++			if (rbo->flags & RADEON_GEM_GTT_UC) {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_UNCACHED |
++					TTM_PL_FLAG_SYSTEM;
++			} else if ((rbo->flags & RADEON_GEM_GTT_WC) ||
++			    rbo->rdev->flags & RADEON_IS_AGP) {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_WC |
++					TTM_PL_FLAG_UNCACHED |
++					TTM_PL_FLAG_SYSTEM;
++			} else {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_CACHED |
++					TTM_PL_FLAG_SYSTEM;
++			}
++		}
++		if (!c) {
+ 			rbo->placements[c].fpfn = 0;
+-			rbo->placements[c++].flags = TTM_PL_FLAG_CACHED |
+-						     TTM_PL_FLAG_TT;
++			rbo->placements[c++].flags = TTM_PL_MASK_CACHING |
++					TTM_PL_FLAG_SYSTEM;
+ 		}
+ 	}
+
+-	if (domain & RADEON_GEM_DOMAIN_CPU) {
+-		if (rbo->flags & RADEON_GEM_GTT_UC) {
+-			rbo->placements[c].fpfn = 0;
+-			rbo->placements[c++].flags = TTM_PL_FLAG_UNCACHED |
+-				TTM_PL_FLAG_SYSTEM;
+-
+-		} else if ((rbo->flags & RADEON_GEM_GTT_WC) ||
+-		    rbo->rdev->flags & RADEON_IS_AGP) {
++	else {
++		if (domain & RADEON_GEM_DOMAIN_GTT) {
++			if (rbo->flags & RADEON_GEM_GTT_UC) {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_UNCACHED |
++				TTM_PL_FLAG_TT;
++			} else if ((rbo->flags & RADEON_GEM_GTT_WC) ||
++				   (rbo->rdev->flags & RADEON_IS_AGP)) {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_WC |
++					TTM_PL_FLAG_UNCACHED |
++					TTM_PL_FLAG_TT;
++			} else {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_WC |
++					TTM_PL_FLAG_TT;
++			}
++		}
++		if (domain & RADEON_GEM_DOMAIN_CPU) {
++			if (rbo->flags & RADEON_GEM_GTT_UC) {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_UNCACHED |
++					TTM_PL_FLAG_SYSTEM;
++			} else if ((rbo->flags & RADEON_GEM_GTT_WC) ||
++			    rbo->rdev->flags & RADEON_IS_AGP) {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_WC |
++					TTM_PL_FLAG_UNCACHED |
++					TTM_PL_FLAG_SYSTEM;
++			} else {
++				rbo->placements[c].fpfn = 0;
++				rbo->placements[c++].flags = TTM_PL_FLAG_WC |
++					TTM_PL_FLAG_SYSTEM;
++			}
++		}
++		if (!c) {
+ 			rbo->placements[c].fpfn = 0;
+ 			rbo->placements[c++].flags = TTM_PL_FLAG_WC |
+-				TTM_PL_FLAG_UNCACHED |
+-				TTM_PL_FLAG_SYSTEM;
+-		} else {
+-			rbo->placements[c].fpfn = 0;
+-			rbo->placements[c++].flags = TTM_PL_FLAG_CACHED |
+-						     TTM_PL_FLAG_SYSTEM;
++					TTM_PL_FLAG_UNCACHED |
++					TTM_PL_FLAG_SYSTEM;
+ 		}
+ 	}
+-	if (!c) {
+-		rbo->placements[c].fpfn = 0;
+-		rbo->placements[c++].flags = TTM_PL_MASK_CACHING |
+-					     TTM_PL_FLAG_SYSTEM;
+-	}
+
+ 	rbo->placement.num_placement = c;
+ 	rbo->placement.num_busy_placement = c;
+diff --git a/drivers/gpu/drm/radeon/radeon_ttm.c b/drivers/gpu/drm/radeon/radeon_ttm.c
+index f342aad7..5548ddfb 100644
+--- a/drivers/gpu/drm/radeon/radeon_ttm.c
++++ b/drivers/gpu/drm/radeon/radeon_ttm.c
+@@ -135,14 +135,24 @@ static int radeon_init_mem_type(struct ttm_bo_device *bdev, uint32_t type,
+ 	case TTM_PL_SYSTEM:
+ 		/* System memory */
+ 		man->flags = TTM_MEMTYPE_FLAG_MAPPABLE;
+-		man->available_caching = TTM_PL_MASK_CACHING;
+-		man->default_caching = TTM_PL_FLAG_CACHED;
++		if (plat_device_is_coherent(NULL)) {
++			man->available_caching = TTM_PL_MASK_CACHING;
++			man->default_caching = TTM_PL_FLAG_CACHED;
++		} else {
++			man->available_caching = TTM_PL_FLAG_WC | TTM_PL_FLAG_UNCACHED;
++			man->default_caching = TTM_PL_FLAG_UNCACHED;
++		}
+ 		break;
+ 	case TTM_PL_TT:
+ 		man->func = &ttm_bo_manager_func;
+ 		man->gpu_offset = rdev->mc.gtt_start;
+-		man->available_caching = TTM_PL_MASK_CACHING;
+-		man->default_caching = TTM_PL_FLAG_CACHED;
++		if (plat_device_is_coherent(NULL)) {
++			man->available_caching = TTM_PL_MASK_CACHING;
++			man->default_caching = TTM_PL_FLAG_CACHED;
++		} else {
++			man->available_caching = TTM_PL_FLAG_WC | TTM_PL_FLAG_UNCACHED;
++			man->default_caching = TTM_PL_FLAG_UNCACHED;
++		}
+ 		man->flags = TTM_MEMTYPE_FLAG_MAPPABLE | TTM_MEMTYPE_FLAG_CMA;
+ #if IS_ENABLED(CONFIG_AGP)
+ 		if (rdev->flags & RADEON_IS_AGP) {
+@@ -186,6 +196,9 @@ static void radeon_evict_flags(struct ttm_buffer_object *bo,
+
+ 	struct radeon_bo *rbo;
+
++	if (!plat_device_is_coherent(NULL))
++		placements.flags = TTM_PL_FLAG_WC | TTM_PL_FLAG_UNCACHED | TTM_PL_FLAG_SYSTEM;
++
+ 	if (!radeon_ttm_bo_is_radeon_bo(bo)) {
+ 		placement->placement = &placements;
+ 		placement->busy_placement = &placements;
+@@ -327,7 +340,11 @@ static int radeon_move_vram_ram(struct ttm_buffer_object *bo,
+ 	placement.busy_placement = &placements;
+ 	placements.fpfn = 0;
+ 	placements.lpfn = 0;
+-	placements.flags = TTM_PL_MASK_CACHING | TTM_PL_FLAG_TT;
++	if (plat_device_is_coherent(NULL))
++		placements.flags = TTM_PL_MASK_CACHING | TTM_PL_FLAG_TT;
++	else
++		placements.flags = TTM_PL_FLAG_WC | TTM_PL_FLAG_UNCACHED | TTM_PL_FLAG_TT;
++
+ 	r = ttm_bo_mem_space(bo, &placement, &tmp_mem,
+ 			     interruptible, no_wait_gpu);
+ 	if (unlikely(r)) {
+@@ -374,7 +391,11 @@ static int radeon_move_ram_vram(struct ttm_buffer_object *bo,
+ 	placement.busy_placement = &placements;
+ 	placements.fpfn = 0;
+ 	placements.lpfn = 0;
+-	placements.flags = TTM_PL_MASK_CACHING | TTM_PL_FLAG_TT;
++	if (plat_device_is_coherent(NULL))
++		placements.flags = TTM_PL_MASK_CACHING | TTM_PL_FLAG_TT;
++	else
++		placements.flags = TTM_PL_FLAG_WC | TTM_PL_FLAG_UNCACHED | TTM_PL_FLAG_TT;
++
+ 	r = ttm_bo_mem_space(bo, &placement, &tmp_mem,
+ 			     interruptible, no_wait_gpu);
+ 	if (unlikely(r)) {
+diff --git a/drivers/gpu/drm/ttm/ttm_bo.c b/drivers/gpu/drm/ttm/ttm_bo.c
+index 745e996d..523eb10d 100644
+--- a/drivers/gpu/drm/ttm/ttm_bo.c
++++ b/drivers/gpu/drm/ttm/ttm_bo.c
+@@ -46,6 +46,7 @@
+ #define TTM_DEBUG(fmt, arg...)
+ #define TTM_BO_HASH_ORDER 13
+
++extern unsigned int Loongson3B_uncache;
+ static int ttm_bo_swapout(struct ttm_mem_shrink *shrink);
+ static void ttm_bo_global_kobj_release(struct kobject *kobj);
+
+@@ -814,6 +815,9 @@ static uint32_t ttm_bo_select_caching(struct ttm_mem_type_manager *man,
+ 	uint32_t caching = proposed_placement & TTM_PL_MASK_CACHING;
+ 	uint32_t result = proposed_placement & ~TTM_PL_MASK_CACHING;
+
++	if (Loongson3B_uncache)
++		caching = proposed_placement & (TTM_PL_FLAG_WC | TTM_PL_FLAG_UNCACHED);
++
+ 	/**
+ 	 * Keep current caching if possible.
+ 	 */
+diff --git a/drivers/net/ethernet/intel/e1000e/netdev.c b/drivers/net/ethernet/intel/e1000e/netdev.c
+index 44d27671..8473e6fd 100644
+--- a/drivers/net/ethernet/intel/e1000e/netdev.c
++++ b/drivers/net/ethernet/intel/e1000e/netdev.c
+@@ -7071,6 +7071,10 @@ static int e1000_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 			goto err_dma;
+ 		}
+ 	}
++	if (!plat_device_is_coherent(NULL)) {
++		pci_using_dac = 0;
++		dma_force_mask(&pdev->dev);
++	}
+
+ 	bars = pci_select_bars(pdev, IORESOURCE_MEM);
+ 	err = pci_request_selected_regions_exclusive(pdev, bars,
+diff --git a/drivers/net/ethernet/intel/igb/igb_main.c b/drivers/net/ethernet/intel/igb/igb_main.c
+index 6b7a9905..ad9fd76f 100644
+--- a/drivers/net/ethernet/intel/igb/igb_main.c
++++ b/drivers/net/ethernet/intel/igb/igb_main.c
+@@ -2265,6 +2265,10 @@ static int igb_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 			goto err_dma;
+ 		}
+ 	}
++	if (!plat_device_is_coherent(NULL)) {
++		pci_using_dac = 1;
++		dma_force_mask(&pdev->dev);
++	}
+
+ 	err = pci_request_mem_regions(pdev, igb_driver_name);
+ 	if (err)
+diff --git a/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c b/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
+index aed8d029..686f2817 100644
+--- a/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
++++ b/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
+@@ -8629,6 +8629,10 @@ static int ixgbe_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 		}
+ 		pci_using_dac = 0;
+ 	}
++	if (!plat_device_is_coherent(NULL)) {
++		pci_using_dac = 0;
++		dma_force_mask(&pdev->dev);
++	}
+
+ 	err = pci_request_mem_regions(pdev, ixgbe_driver_name);
+ 	if (err) {
+diff --git a/drivers/platform/mips/cpu_hwmon.c b/drivers/platform/mips/cpu_hwmon.c
+index 7c56d718..c2eb001a 100644
+--- a/drivers/platform/mips/cpu_hwmon.c
++++ b/drivers/platform/mips/cpu_hwmon.c
+@@ -144,7 +144,7 @@ static void do_thermal_timer(struct work_struct *work)
+ 	if (value <= CPU_THERMAL_THRESHOLD)
+ 		schedule_delayed_work(&thermal_work, msecs_to_jiffies(5000));
+ 	else
+-		orderly_poweroff(true);
++		schedule_delayed_work(&thermal_work, msecs_to_jiffies(5000));
+ }
+
+ static int __init loongson_hwmon_init(void)
+diff --git a/drivers/platform/mips/wpce_fan.c b/drivers/platform/mips/wpce_fan.c
+index 0ff50c9d..47e21d36 100644
+--- a/drivers/platform/mips/wpce_fan.c
++++ b/drivers/platform/mips/wpce_fan.c
+@@ -118,7 +118,7 @@ static void notify_temp(struct work_struct *work)
+
+ 	temp =  fan_policy.depend_temp(0) / 1000;
+
+-	ec_write_noindex(0x4d, temp);
++	ec_write_noindex(0x4d, 64);
+
+ 	queue_delayed_work(notify_workqueue, &notify_work,
+ 				fan_policy.adjust_period * HZ);
+diff --git a/include/linux/types.h b/include/linux/types.h
+index 70dd3dfd..c7ef1bcf 100644
+--- a/include/linux/types.h
++++ b/include/linux/types.h
+@@ -172,9 +172,16 @@ typedef phys_addr_t resource_size_t;
+  */
+ typedef unsigned long irq_hw_number_t;
+
++#ifndef CONFIG_CPU_LOONGSON3
+ typedef struct {
+ 	int counter;
+ } atomic_t;
++#else
++typedef struct {
++	int counter;
++	int padding;
++} __attribute__((aligned(8))) atomic_t;
++#endif
+
+ #ifdef CONFIG_64BIT
+ typedef struct {
+diff --git a/lib/swiotlb.c b/lib/swiotlb.c
+index 85ad3ebf..25cebc58 100644
+--- a/lib/swiotlb.c
++++ b/lib/swiotlb.c
+@@ -96,6 +96,10 @@ static DEFINE_SPINLOCK(io_tlb_lock);
+
+ static int late_alloc;
+
++extern struct page *dma_addr_to_page(struct device *dev, dma_addr_t dma_addr);
++extern void __dma_sync_virtual(void *addr, size_t size, enum dma_data_direction direction);
++extern void __dma_sync(struct page *page, unsigned long offset, size_t size, enum dma_data_direction direction);
++
+ static int __init
+ setup_io_tlb_npages(char *str)
+ {
+@@ -417,7 +421,11 @@ static void swiotlb_bounce(phys_addr_t orig_addr, phys_addr_t tlb_addr,
+ 		}
+ 	} else if (dir == DMA_TO_DEVICE) {
+ 		memcpy(vaddr, phys_to_virt(orig_addr), size);
++		if (!plat_device_is_coherent(NULL))
++			__dma_sync_virtual(vaddr, size, dir);
+ 	} else {
++		if (!plat_device_is_coherent(NULL))
++			__dma_sync_virtual(vaddr, size, dir);
+ 		memcpy(phys_to_virt(orig_addr), vaddr, size);
+ 	}
+ }
+@@ -674,6 +682,11 @@ swiotlb_alloc_coherent(struct device *hwdev, size_t size,
+ 		}
+ 	}
+
++	if (!plat_device_is_coherent(hwdev)) {
++		dma_cache_wback_inv((unsigned long) ret, size);
++		ret = UNCAC_ADDR(ret);
++	}
++
+ 	*dma_handle = dev_addr;
+ 	memset(ret, 0, size);
+
+@@ -695,6 +708,11 @@ swiotlb_free_coherent(struct device *hwdev, size_t size, void *vaddr,
+ 	phys_addr_t paddr = dma_to_phys(hwdev, dev_addr);
+
+ 	WARN_ON(irqs_disabled());
++	if (!plat_device_is_coherent(hwdev)) {
++		vaddr = CAC_ADDR(vaddr);
++		dma_cache_wback_inv((unsigned long)vaddr, size);
++	}
++
+ 	if (!is_swiotlb_buffer(paddr))
+ 		free_pages((unsigned long)vaddr, get_order(size));
+ 	else
+@@ -750,8 +768,11 @@ dma_addr_t swiotlb_map_page(struct device *dev, struct page *page,
+ 	 * we can safely return the device addr and not worry about bounce
+ 	 * buffering it.
+ 	 */
+-	if (dma_capable(dev, dev_addr, size) && !swiotlb_force && !dev_swiotlb_force)
++	if (dma_capable(dev, dev_addr, size) && !swiotlb_force && !dev_swiotlb_force) {
++		if (!plat_device_is_coherent(dev))
++			__dma_sync(dma_addr_to_page(dev, dev_addr), dev_addr & ~PAGE_MASK, size, dir);
+ 		return dev_addr;
++	}
+
+ 	trace_swiotlb_bounced(dev, dev_addr, size, swiotlb_force);
+
+@@ -794,6 +815,9 @@ static void unmap_single(struct device *hwdev, dma_addr_t dev_addr,
+ 		return;
+ 	}
+
++	if (!plat_device_is_coherent(hwdev))
++		__dma_sync(dma_addr_to_page(hwdev, dev_addr), dev_addr & ~PAGE_MASK, size, dir);
++
+ 	if (dir != DMA_FROM_DEVICE)
+ 		return;
+
+@@ -903,8 +927,11 @@ swiotlb_map_sg_attrs(struct device *hwdev, struct scatterlist *sgl, int nelems,
+ 				return 0;
+ 			}
+ 			sg->dma_address = phys_to_dma(hwdev, map);
+-		} else
++		} else {
++			if (!plat_device_is_coherent(hwdev))
++				__dma_sync(sg_page(sg), sg->offset, sg->length, dir);
+ 			sg->dma_address = dev_addr;
++		}
+ 		sg_dma_len(sg) = sg->length;
+ 	}
+ 	return nelems;
+diff --git a/net/socket.c b/net/socket.c
+index 263b334e..51f2ad63 100644
+--- a/net/socket.c
++++ b/net/socket.c
+@@ -1230,6 +1230,14 @@ SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
+ 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
+ 		flags = (flags & ~SOCK_NONBLOCK) | O_NONBLOCK;
+
++	if (!plat_device_is_coherent(NULL)) {
++		DECLARE_BITMAP(cpu_bits, 8);
++
++		bitmap_fill(cpu_bits, 8);
++		if (family == PF_INET)
++			set_cpus_allowed_ptr(current, to_cpumask(cpu_bits));
++	}
++
+ 	retval = sock_create(family, type, protocol, &sock);
+ 	if (retval < 0)
+ 		goto out;
+diff --git a/sound/core/pcm_native.c b/sound/core/pcm_native.c
+index 4ba64fd4..1fffb8ac 100644
+--- a/sound/core/pcm_native.c
++++ b/sound/core/pcm_native.c
+@@ -3333,6 +3333,10 @@ static inline struct page *
+ snd_pcm_default_page_ops(struct snd_pcm_substream *substream, unsigned long ofs)
+ {
+ 	void *vaddr = substream->runtime->dma_area + ofs;
++#if defined(CONFIG_MIPS)
++	if (substream->dma_buffer.dev.type == SNDRV_DMA_TYPE_DEV && !plat_device_is_coherent(NULL))
++		return virt_to_page(CAC_ADDR(vaddr));
++#endif
+ 	return virt_to_page(vaddr);
+ }
+
+@@ -3410,6 +3414,11 @@ int snd_pcm_lib_default_mmap(struct snd_pcm_substream *substream,
+ 					 substream->runtime->dma_addr,
+ 					 area->vm_end - area->vm_start);
+ #endif /* CONFIG_X86 */
++#ifdef CONFIG_MIPS
++	if (substream->dma_buffer.dev.type == SNDRV_DMA_TYPE_DEV &&
++	    !plat_device_is_coherent(substream->dma_buffer.dev.dev))
++		area->vm_page_prot = pgprot_noncached(area->vm_page_prot);
++#endif /* CONFIG_MIPS */
+ 	/* mmap with fault handler */
+ 	area->vm_ops = &snd_pcm_vm_ops_data_fault;
+ 	return 0;
+@@ -3497,6 +3497,12 @@ static int snd_pcm_mmap(struct file *file, struct vm_area_struct *area)
+ 	struct snd_pcm_substream *substream;
+ 	unsigned long offset;
+
++	if (!plat_device_is_coherent(NULL)) {
++		/* all mmap using uncached mode */
++		area->vm_page_prot = pgprot_noncached(area->vm_page_prot);
++		area->vm_flags |= ( VM_DONTEXPAND | VM_DONTDUMP | VM_IO);
++	}
++
+ 	pcm_file = file->private_data;
+ 	substream = pcm_file->substream;
+ 	if (PCM_RUNTIME_CHECK(substream))
+diff --git a/sound/core/sgbuf.c b/sound/core/sgbuf.c
+index 84fffabd..ade570c8 100644
+--- a/sound/core/sgbuf.c
++++ b/sound/core/sgbuf.c
+@@ -114,7 +114,10 @@ void *snd_malloc_sgbuf_pages(struct device *device,
+ 			if (!i)
+ 				table->addr |= chunk; /* mark head */
+ 			table++;
+-			*pgtable++ = virt_to_page(tmpb.area);
++			if (!plat_device_is_coherent(NULL))
++				*pgtable++ = virt_to_page(CAC_ADDR(tmpb.area));
++			else
++				*pgtable++ = virt_to_page(tmpb.area);
+ 			tmpb.area += PAGE_SIZE;
+ 			tmpb.addr += PAGE_SIZE;
+ 		}
+@@ -125,7 +128,10 @@ void *snd_malloc_sgbuf_pages(struct device *device,
+ 	}
+
+ 	sgbuf->size = size;
+-	dmab->area = vmap(sgbuf->page_table, sgbuf->pages, VM_MAP, PAGE_KERNEL);
++	if (!plat_device_is_coherent(NULL))
++		dmab->area = vmap(sgbuf->page_table, sgbuf->pages, VM_MAP | VM_IO, pgprot_noncached(PAGE_KERNEL));
++	else
++		dmab->area = vmap(sgbuf->page_table, sgbuf->pages, VM_MAP, PAGE_KERNEL);
+ 	if (! dmab->area)
+ 		goto _failed;
+ 	if (res_size)
+--
+2.11.0
