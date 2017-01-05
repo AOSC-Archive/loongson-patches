@@ -2741,7 +2741,6 @@ index 7b0aa82e..48612b00 100644
 +	help
 +	  If you say yes to this option, support will be included for the
 +	  I2C interface on the Loongson-2H Platform-Bridge.
-+drivers/mtd/nand/Kconfig
 +
  config I2C_PASEMI
  	tristate "PA Semi SMBus interface"
