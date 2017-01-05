@@ -49,9 +49,5 @@ platform/0035-MIPS-Loongson-Add-a-hook-to-turn-on-off-DPMS-when-Fn.patch
 platform/0037-MIPS-Loongson-Add-PMON-read-write-in-OS-support.patch
 platform/0041-Fix-touchpad-status-error-after-STR-STD.patch
 platform/0043-MIPS-Loongson-Add-support-for-smbios.patch
-platform/0069-Loongson-Add-basic-support-for-LS2H-bridge.patch
 platform/0070-Loongson-Add-memory-type-UMA_VIDEO_RAM-to-pass-share.patch
-platform/0083-Loongson-3-Adjust-LS2H-pci_io_base-for-old-PMON.patch
-platform/0084-Loongson-3-LS2H-bridge-Add-support-for-new-3A-B-2000.patch
-platform/0085-Loongson-3-Add-LS2H-ehci-and-ohci-support.patch
 platform/0106-Detect-SpeedPercentThreshold-asynchronously-for-SBX0.patch
