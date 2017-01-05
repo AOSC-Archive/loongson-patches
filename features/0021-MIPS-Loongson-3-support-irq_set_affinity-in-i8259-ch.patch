@@ -1,0 +1,142 @@
+From 1ae29cad79749067e4c9187ae97e522ea4209e19 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Fri, 26 Jun 2015 15:40:09 +0800
+Subject: [PATCH 021/130] MIPS: Loongson-3: support irq_set_affinity() in i8259
+ chip
+
+With this patch we can set irq affinity via procfs, so as to improve
+network performance.
+
+Change-Id: Id28ab860f5f6f35aa52896a7d7f388d1a13bb57a
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/include/asm/irq.h           |  3 ++
+ arch/mips/loongson64/loongson-3/irq.c | 62 +++++++++++++++++++++++++++--------
+ drivers/irqchip/irq-i8259.c           |  3 ++
+ 3 files changed, 55 insertions(+), 13 deletions(-)
+
+diff --git a/arch/mips/include/asm/irq.h b/arch/mips/include/asm/irq.h
+index 15e0fecb..ab8304fd 100644
+--- a/arch/mips/include/asm/irq.h
++++ b/arch/mips/include/asm/irq.h
+@@ -26,6 +26,7 @@ static inline int irq_canonicalize(int irq)
+ #define irq_canonicalize(irq) (irq)	/* Sane hardware, sane code ... */
+ #endif
+ 
++struct irq_data;
+ asmlinkage void plat_irq_dispatch(void);
+ 
+ extern void do_IRQ(unsigned int irq);
+@@ -36,6 +37,8 @@ extern void spurious_interrupt(void);
+ extern int allocate_irqno(void);
+ extern void alloc_legacy_irqno(void);
+ extern void free_irqno(unsigned int irq);
++extern int plat_set_irq_affinity(struct irq_data *d,
++				 const struct cpumask *affinity, bool force);
+ 
+ /*
+  * Before R2 the timer and performance counter interrupts were both fixed to
+diff --git a/arch/mips/loongson64/loongson-3/irq.c b/arch/mips/loongson64/loongson-3/irq.c
+index b548a95b..27e4ed3b 100644
+--- a/arch/mips/loongson64/loongson-3/irq.c
++++ b/arch/mips/loongson64/loongson-3/irq.c
+@@ -10,32 +10,68 @@
+ #include "smp.h"
+ 
+ extern void loongson3_send_irq_by_ipi(int cpu, int irqs);
++
++unsigned int irq_cpu[16] = {[0 ... 15] = -1};
+ unsigned int ht_irq[] = {0, 1, 3, 4, 5, 6, 7, 8, 12, 14, 15};
+ unsigned int local_irq = 1<<0 | 1<<1 | 1<<2 | 1<<7 | 1<<8 | 1<<12;
+ 
++int plat_set_irq_affinity(struct irq_data *d, const struct cpumask *affinity,
++			  bool force)
++{
++	unsigned int cpu;
++	struct cpumask new_affinity;
++
++	/* I/O devices are connected on package-0 */
++	cpumask_copy(&new_affinity, affinity);
++	for_each_cpu(cpu, affinity)
++		if (cpu_data[cpu].package > 0)
++			cpumask_clear_cpu(cpu, &new_affinity);
++
++	if (cpumask_empty(&new_affinity))
++		return -EINVAL;
++
++	cpumask_copy(d->common->affinity, &new_affinity);
++
++	return IRQ_SET_MASK_OK_NOCOPY;
++}
++
+ static void ht_irqdispatch(void)
+ {
+-	unsigned int i, irq, irq0, irq1;
+-	static unsigned int dest_cpu = 0;
++	unsigned int i, irq;
++	struct irq_data *irqd;
++	struct cpumask affinity;
+ 
+ 	irq = LOONGSON_HT1_INT_VECTOR(0);
+ 	LOONGSON_HT1_INT_VECTOR(0) = irq; /* Acknowledge the IRQs */
+ 
+-	irq0 = irq & local_irq;  /* handled by local core */
+-	irq1 = irq & ~local_irq; /* balanced by other cores */
++	for (i = 0; i < ARRAY_SIZE(ht_irq); i++) {
++		if (!(irq & (0x1 << ht_irq[i])))
++			continue;
+ 
+-	if (dest_cpu == 0 || !cpu_online(dest_cpu))
+-		irq0 |= irq1;
+-	else
+-		loongson3_send_irq_by_ipi(dest_cpu, irq1);
++		/* handled by local core */
++		if (local_irq & (0x1 << ht_irq[i])) {
++			do_IRQ(ht_irq[i]);
++			continue;
++		}
+ 
+-	dest_cpu = dest_cpu + 1;
+-	if (dest_cpu >= num_possible_cpus() || cpu_data[dest_cpu].package > 0)
+-		dest_cpu = 0;
++		irqd = irq_get_irq_data(ht_irq[i]);
++		cpumask_and(&affinity, irqd->common->affinity, cpu_active_mask);
++		if (cpumask_empty(&affinity)) {
++			do_IRQ(ht_irq[i]);
++			continue;
++		}
+ 
+-	for (i = 0; i < ARRAY_SIZE(ht_irq); i++) {
+-		if (irq0 & (0x1 << ht_irq[i]))
++		irq_cpu[ht_irq[i]] = cpumask_next(irq_cpu[ht_irq[i]], &affinity);
++		if (irq_cpu[ht_irq[i]] >= nr_cpu_ids)
++			irq_cpu[ht_irq[i]] = cpumask_first(&affinity);
++
++		if (irq_cpu[ht_irq[i]] == 0) {
+ 			do_IRQ(ht_irq[i]);
++			continue;
++		}
++
++		/* balanced by other cores */
++		loongson3_send_irq_by_ipi(irq_cpu[ht_irq[i]], (0x1 << ht_irq[i]));
+ 	}
+ }
+ 
+diff --git a/drivers/irqchip/irq-i8259.c b/drivers/irqchip/irq-i8259.c
+index 6b304eb3..d17704ad 100644
+--- a/drivers/irqchip/irq-i8259.c
++++ b/drivers/irqchip/irq-i8259.c
+@@ -45,6 +45,9 @@ static struct irq_chip i8259A_chip = {
+ 	.irq_disable		= disable_8259A_irq,
+ 	.irq_unmask		= enable_8259A_irq,
+ 	.irq_mask_ack		= mask_and_ack_8259A,
++#ifdef CONFIG_CPU_LOONGSON3
++	.irq_set_affinity	= plat_set_irq_affinity,
++#endif
+ };
+ 
+ /*
+-- 
+2.11.0
+

@@ -1,0 +1,51 @@
+From ee36b17238a01eb364a89d9c42ce282aa8420914 Mon Sep 17 00:00:00 2001
+From: zhangshuangshuang <zhangshuangshuang@ict.ac.cn>
+Date: Fri, 3 Jun 2016 11:47:03 +0800
+Subject: [PATCH 080/130] MIPS: Loongson-3: Disable gcc fix-ls3a-llsc for futex
+
+GCC option fix-ls3a-llsc is enabled by default,
+but it can trigger a BUG such as this one:
+
+Oops[#1]:
+CPU: 0 PID: 1 Comm: swapper/0 Not tainted 4.4.8+ #1
+Stack : ffffffff80b99c88 ffffffff80c284a8 0000000000000119 ffffffff80c3440c
+         0000000000000400 980000017f77a380 ffffffff0000000a 0000000000000008
+         ffffffff80bb2508 ffffffff80c342c8 0000000000000000 ffffffff80200498
+         0000000000000000 0000000000000006 ffffffff80b9c848 0000000000000119
+         ffffffff80c55c78 ffffffff80c55c30 0000000000000007 ffffffff80c90000
+         ffffffff80c55c78 ffffffff80c55c30 0000000000000007 ffffffff80c90000
+         ffffffff80c90000 ffffffff80c283d4 ffffffff80c67460 0000000000000000
+         ffffffff809856f0 0000000000000000 0000000000000000 0000000000000000
+         0000000000000000 0000000000000000 0000000000000000 0000000000000000
+         0000000000000000 ffffffff80985700 ffffffff809856f0 ffffffff802068e0
+         ...
+Call Trace:
+[<ffffffff8029cfc0>] cmpxchg_futex_value_locked+0x38/0xa0
+[<ffffffff80c3440c>] futex_init+0x144/0x1b8
+[<ffffffff80200498>] do_one_initcall+0x98/0x1c8
+
+This is because the fix-ls3a-llsc option would add sync before ll instruction,
+and the branch address of futex function realized by assembly language is affected.
+
+Change-Id: Ia13b36b4a0cec2ae402100ca9f5e5a5490abe08d
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/loongson64/Platform | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/mips/loongson64/Platform b/arch/mips/loongson64/Platform
+index 0fce4608..00e1a78b 100644
+--- a/arch/mips/loongson64/Platform
++++ b/arch/mips/loongson64/Platform
+@@ -22,7 +22,7 @@ ifdef CONFIG_CPU_LOONGSON2F_WORKAROUNDS
+   endif
+ endif
+ 
+-cflags-$(CONFIG_CPU_LOONGSON3)	+= -Wa,--trap
++cflags-$(CONFIG_CPU_LOONGSON3)	+= -Wa,--trap -Wa,-mnofix-ls3a-llsc
+ #
+ # binutils from v2.25 on and gcc starting from v4.9.0 treat -march=loongson3a
+ # as MIPS64 R2; older versions as just R1.  This leaves the possibility open
+-- 
+2.11.0
+

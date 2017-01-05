@@ -1,0 +1,43 @@
+From f1cf53464a08d8518e3e261cb4697e3fcfecb888 Mon Sep 17 00:00:00 2001
+From: zhangshuangshuang <zhangshuangshuang@ict.ac.cn>
+Date: Thu, 30 Jun 2016 17:30:53 +0800
+Subject: [PATCH 091/130] Loongson-3: Workaround for loongson3a2000 four way
+
+Memory of 3A2000 four way board's 3rd node can not be
+used by DMA due to hardware failer. DMA start address
+of node3 is 0x0000_0060_0000_0000, so we workaround this
+by using swiotlb when dma address >= 0x0060_0000_0000.
+
+Change-Id: Ie5a0a2f4abfa762614fa2d010970e4d1b95a1162
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/include/asm/dma-mapping.h | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/arch/mips/include/asm/dma-mapping.h b/arch/mips/include/asm/dma-mapping.h
+index e604f760..d80b86c8 100644
+--- a/arch/mips/include/asm/dma-mapping.h
++++ b/arch/mips/include/asm/dma-mapping.h
+@@ -24,6 +24,19 @@ static inline bool dma_capable(struct device *dev, dma_addr_t addr, size_t size)
+ 	if (!dev->dma_mask)
+ 		return false;
+ 
++#if defined(CONFIG_CPU_LOONGSON3)
++	/*
++	 * Memory of 3A2000 four way board's 3rd node can not be
++	 * used by DMA due to hardware failer. DMA start address
++	 * of node3 is 0x0000_0060_0000_0000, so we workaround this
++	 * by using swiotlb when dma address >= 0x60_0000_0000.
++	 */
++	if ((read_c0_prid() & PRID_REV_MASK) == PRID_REV_LOONGSON3A_R2) {
++		if ((addr + size) >= 0x0000006000000000UL)
++			return false;
++	}
++#endif
++
+ 	return addr + size <= *dev->dma_mask;
+ }
+ 
+-- 
+2.11.0
+

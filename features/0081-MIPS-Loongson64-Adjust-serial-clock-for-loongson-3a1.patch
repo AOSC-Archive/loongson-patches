@@ -1,0 +1,28 @@
+From 4f487c7956cfc06e710cd3b6db503f97cf0c82b2 Mon Sep 17 00:00:00 2001
+From: zhangshuangshuang <zhangshuangshuang@ict.ac.cn>
+Date: Tue, 31 May 2016 15:57:33 +0800
+Subject: [PATCH 081/130] MIPS: Loongson64: Adjust serial clock for
+ loongson-3a1000 board
+
+Change-Id: I06b7dea6bc647fc5714ba5882d6d2f0b9c44b61d
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/loongson64/common/serial.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/mips/loongson64/common/serial.c b/arch/mips/loongson64/common/serial.c
+index ffefc1cb..9dd43bf8 100644
+--- a/arch/mips/loongson64/common/serial.c
++++ b/arch/mips/loongson64/common/serial.c
+@@ -47,7 +47,7 @@ static struct plat_serial8250_port uart8250_data[][MAX_UARTS + 1] = {
+ 	[MACH_DEXXON_GDIUM2F10]	= {PORT_M(3, 3686400), {} },
+ 	[MACH_LEMOTE_NAS]	= {PORT_M(3, 3686400), {} },
+ 	[MACH_LEMOTE_LL2F]	= {PORT(3, 1843200), {} },
+-	[MACH_LOONGSON_GENERIC]	= {PORT_M(2, 25000000), {} },
++	[MACH_LOONGSON_GENERIC]	= {PORT_M(2, 33000000), {} },
+ 	[MACH_LOONGSON_END]	= {},
+ };
+ 
+-- 
+2.11.0
+

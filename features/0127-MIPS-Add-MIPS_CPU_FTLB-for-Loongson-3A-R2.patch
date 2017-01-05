@@ -1,0 +1,30 @@
+From 65e0eba12f20b7871c0322a6484b282a27e9c106 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Fri, 4 Nov 2016 11:19:30 +0800
+Subject: [PATCH 127/130] MIPS: Add MIPS_CPU_FTLB for Loongson-3A R2
+
+Loongson-3A R2 and newer CPU have FTLB, but Config0.MT is 1, so add
+MIPS_CPU_FTLB to the CPU options.
+
+Change-Id: I317f8db739804e02ae09692fd8e00de53d74aa79
+Cc: stable@vger.kernel.org
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+---
+ arch/mips/kernel/cpu-probe.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/mips/kernel/cpu-probe.c b/arch/mips/kernel/cpu-probe.c
+index 7b54a335..1be6eeac 100644
+--- a/arch/mips/kernel/cpu-probe.c
++++ b/arch/mips/kernel/cpu-probe.c
+@@ -1376,7 +1376,7 @@ static inline void cpu_probe_loongson(struct cpuinfo_mips *c, unsigned int cpu)
+ 		}
+
+ 		decode_configs(c);
+-		c->options |= MIPS_CPU_TLBINV | MIPS_CPU_LDPTE;
++		c->options |= MIPS_CPU_FTLB | MIPS_CPU_TLBINV | MIPS_CPU_LDPTE;
+ 		c->writecombine = _CACHE_UNCACHED_ACCELERATED;
+ 		break;
+ 	default:
+--
+2.11.0

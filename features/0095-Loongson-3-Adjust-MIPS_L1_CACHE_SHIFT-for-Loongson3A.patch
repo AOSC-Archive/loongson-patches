@@ -1,0 +1,30 @@
+From 9d249aea4ef2653d99ab3c214fc2fafd097fdd29 Mon Sep 17 00:00:00 2001
+From: zhangshuangshuang <zhangshuangshuang@ict.ac.cn>
+Date: Thu, 7 Jul 2016 15:48:02 +0800
+Subject: [PATCH 095/130] Loongson-3: Adjust MIPS_L1_CACHE_SHIFT for
+ Loongson3A/B2000
+
+arch/mips/Kconfig modified by Junde Yhi.
+arch/mips/configs/loongson3_defconfig deleted by Junde Yhi.
+
+Change-Id: Ie1b2390c8da4e1a25130b067e036b29b32a64775
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/Kconfig                     | 1 +
+ arch/mips/configs/loongson3_defconfig | 3 ++-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index 6798daa1..c57a7ca1 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -1347,6 +1347,7 @@ config CPU_LOONGSON3
+ 	select WEAK_REORDERING_BEYOND_LLSC
+ 	select MIPS_PGD_C0_CONTEXT
+ 	select GPIOLIB
++	select MIPS_L1_CACHE_SHIFT_6
+ 	help
+ 		The Loongson 3 processor implements the MIPS64R2 instruction
+ 		set with many extensions.
+--
+2.11.0

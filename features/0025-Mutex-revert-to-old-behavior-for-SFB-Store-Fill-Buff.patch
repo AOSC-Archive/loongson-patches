@@ -1,0 +1,37 @@
+From f75347f2d3771753289a103bc1e4f6b1b30e8f5e Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Tue, 19 Jan 2016 08:42:05 +0800
+Subject: [PATCH 025/130] Mutex: revert to old behavior for SFB (Store Fill
+ Buffer)
+
+Change-Id: I8a1c502e1373ff6007edb6e74089fcf4c764caf9
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ kernel/locking/mutex.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/kernel/locking/mutex.c b/kernel/locking/mutex.c
+index 0551c219..468fe3f5 100644
+--- a/kernel/locking/mutex.c
++++ b/kernel/locking/mutex.c
+@@ -729,13 +729,13 @@ __mutex_unlock_common_slowpath(struct mutex *lock, int nested)
+ 	 * case, others need to leave it locked. In the later case we have to
+ 	 * unlock it here - as the lock counter is currently 0 or negative.
+ 	 */
+-	if (__mutex_slowpath_needs_to_unlock())
+-		atomic_set(&lock->count, 1);
+-
+ 	spin_lock_mutex(&lock->wait_lock, flags);
+ 	mutex_release(&lock->dep_map, nested, _RET_IP_);
+ 	debug_mutex_unlock(lock);
+ 
++	if (__mutex_slowpath_needs_to_unlock())
++		atomic_set(&lock->count, 1);
++
+ 	if (!list_empty(&lock->wait_list)) {
+ 		/* get the first entry from the wait-list: */
+ 		struct mutex_waiter *waiter =
+-- 
+2.11.0
+

@@ -1,0 +1,53 @@
+From 4a66637b83617b71ee8587ac776a36958d490e21 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Sun, 10 Jan 2016 22:18:03 +0800
+Subject: [PATCH 019/130] MIPS: Loongson: Add NMI handler support
+
+Change-Id: I63b73df5156e14c0382ead552bc3a6fafe985828
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ arch/mips/loongson64/common/init.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/arch/mips/loongson64/common/init.c b/arch/mips/loongson64/common/init.c
+index 9b987fe9..6ef17120 100644
+--- a/arch/mips/loongson64/common/init.c
++++ b/arch/mips/loongson64/common/init.c
+@@ -10,13 +10,25 @@
+ 
+ #include <linux/bootmem.h>
+ #include <asm/bootinfo.h>
++#include <asm/traps.h>
+ #include <asm/smp-ops.h>
++#include <asm/cacheflush.h>
+ 
+ #include <loongson.h>
+ 
+ /* Loongson CPU address windows config space base address */
+ unsigned long __maybe_unused _loongson_addrwincfg_base;
+ 
++static void __init mips_nmi_setup(void)
++{
++	void *base;
++	extern char except_vec_nmi;
++
++	base = (void *)(CAC_BASE + 0x380);
++	memcpy(base, &except_vec_nmi, 0x80);
++	flush_icache_range((unsigned long)base, (unsigned long)base + 0x80);
++}
++
+ void __init prom_init(void)
+ {
+ #ifdef CONFIG_CPU_SUPPORTS_ADDRWINCFG
+@@ -40,6 +52,7 @@ void __init prom_init(void)
+ 	/*init the uart base address */
+ 	prom_init_uart_base();
+ 	register_smp_ops(&loongson3_smp_ops);
++	board_nmi_handler_setup = mips_nmi_setup;
+ }
+ 
+ void __init prom_free_prom_memory(void)
+-- 
+2.11.0
+

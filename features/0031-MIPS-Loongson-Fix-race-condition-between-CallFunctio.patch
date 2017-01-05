@@ -1,0 +1,236 @@
+From 3c1fe6dae7911d14c8eedd7673e4c4d72c2bf017 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Wed, 6 Nov 2013 15:19:01 +0800
+Subject: [PATCH 031/130] MIPS: Loongson: Fix race condition between
+ CallFunction_IPI and CPU Autoplug
+
+Change-Id: I2bd4d736b936633f88913adaee3b0da1a3e3bc04
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Hongliang Tao <taohl@lemote.com>
+Signed-off-by: Hua Yan <yanh@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ .../loongson64/loongson-3/loongson3_cpuautoplug.c  | 14 ++++++++--
+ block/blk-mq.c                                     |  6 ++--
+ block/blk-softirq.c                                |  8 ++++--
+ include/linux/smp.h                                |  1 +
+ kernel/smp.c                                       | 32 ++++++++++++++++++++--
+ 5 files changed, 53 insertions(+), 8 deletions(-)
+
+diff --git a/arch/mips/loongson64/loongson-3/loongson3_cpuautoplug.c b/arch/mips/loongson64/loongson-3/loongson3_cpuautoplug.c
+index 720a5f26..055604e8 100644
+--- a/arch/mips/loongson64/loongson-3/loongson3_cpuautoplug.c
++++ b/arch/mips/loongson64/loongson-3/loongson3_cpuautoplug.c
+@@ -26,6 +26,9 @@ int autoplug_enabled = 0;
+ int autoplug_verbose = 0;
+ int autoplug_adjusting = 0;
+ 
++/* 0: normal, 1: being online, -1: being offline */
++DEFINE_PER_CPU(int, cpu_adjusting);
++
+ struct cpu_autoplug_info {
+ 	cputime64_t prev_idle;
+ 	cputime64_t prev_wall;
+@@ -264,10 +267,12 @@ static void increase_cores(int cur_cpus)
+ 		return;
+ 
+ 	target_cpu = cpumask_next_zero(0, cpu_online_mask);
++	per_cpu(cpu_adjusting, target_cpu) = 1;
+ 	lock_device_hotplug();
+ 	cpu_up(target_cpu);
+ 	get_cpu_device(target_cpu)->offline = false;
+ 	unlock_device_hotplug();
++	per_cpu(cpu_adjusting, target_cpu) = 0;
+ }
+ 
+ 
+@@ -279,10 +284,12 @@ static void decrease_cores(int cur_cpus)
+ 		return;
+ 
+ 	target_cpu = find_last_bit(cpumask_bits(cpu_online_mask), num_possible_cpus());
++	per_cpu(cpu_adjusting, target_cpu) = -1;
+ 	lock_device_hotplug();
+ 	cpu_down(target_cpu);
+ 	get_cpu_device(target_cpu)->offline = true;
+ 	unlock_device_hotplug();
++	per_cpu(cpu_adjusting, target_cpu) = 0;
+ }
+ 
+ #define INC_THRESHOLD 95
+@@ -298,7 +305,7 @@ static void do_autoplug_timer(struct work_struct *work)
+ 
+ 	BUG_ON(smp_processor_id() != 0);
+ 	delay = msecs_to_jiffies(ap_info.sampling_rate);
+-	if (!autoplug_enabled || system_state != SYSTEM_RUNNING)
++	if (!autoplug_enabled || system_state != SYSTEM_RUNNING || atomic_read(&global_cfd_refcount) != 0)
+ 		goto out;
+ 
+ 	autoplug_adjusting = 1;
+@@ -372,7 +379,7 @@ static struct platform_driver platform_driver = {
+ 
+ static int __init cpuautoplug_init(void)
+ {
+-	int ret, delay;
++	int i, ret, delay;
+ 
+ 	ret = sysfs_create_group(&cpu_subsys.dev_root->kobj, &cpuclass_attr_group);
+ 	if (ret)
+@@ -395,6 +402,9 @@ static int __init cpuautoplug_init(void)
+ 	}
+ 	if (setup_max_cpus > num_possible_cpus())
+ 		ap_info.maxcpus = num_possible_cpus();
++
++	for_each_possible_cpu(i)
++		per_cpu(cpu_adjusting, i) = 0;
+ #ifndef MODULE
+ 	delay = msecs_to_jiffies(ap_info.sampling_rate * 24);
+ #else
+diff --git a/block/blk-mq.c b/block/blk-mq.c
+index 6d6f8feb..319ec60e 100644
+--- a/block/blk-mq.c
++++ b/block/blk-mq.c
+@@ -336,7 +336,7 @@ static void blk_mq_ipi_complete_request(struct request *rq)
+ {
+ 	struct blk_mq_ctx *ctx = rq->mq_ctx;
+ 	bool shared = false;
+-	int cpu;
++	int cpu, err;
+ 
+ 	if (!test_bit(QUEUE_FLAG_SAME_COMP, &rq->q->queue_flags)) {
+ 		rq->q->softirq_done_fn(rq);
+@@ -351,7 +351,9 @@ static void blk_mq_ipi_complete_request(struct request *rq)
+ 		rq->csd.func = __blk_mq_complete_request_remote;
+ 		rq->csd.info = rq;
+ 		rq->csd.flags = 0;
+-		smp_call_function_single_async(ctx->cpu, &rq->csd);
++		err = smp_call_function_single_async(ctx->cpu, &rq->csd);
++		if (err)
++			rq->q->softirq_done_fn(rq);
+ 	} else {
+ 		rq->q->softirq_done_fn(rq);
+ 	}
+diff --git a/block/blk-softirq.c b/block/blk-softirq.c
+index 53b1737e..da7d2525 100644
+--- a/block/blk-softirq.c
++++ b/block/blk-softirq.c
+@@ -59,14 +59,18 @@ static void trigger_softirq(void *data)
+ static int raise_blk_irq(int cpu, struct request *rq)
+ {
+ 	if (cpu_online(cpu)) {
++		int err;
+ 		struct call_single_data *data = &rq->csd;
+ 
+ 		data->func = trigger_softirq;
+ 		data->info = rq;
+ 		data->flags = 0;
+ 
+-		smp_call_function_single_async(cpu, data);
+-		return 0;
++		err = smp_call_function_single_async(cpu, data);
++		if (err)
++			return 1;
++		else
++			return 0;
+ 	}
+ 
+ 	return 1;
+diff --git a/include/linux/smp.h b/include/linux/smp.h
+index c4414074..a898ccc5 100644
+--- a/include/linux/smp.h
++++ b/include/linux/smp.h
+@@ -23,6 +23,7 @@ struct call_single_data {
+ 
+ /* total number of cpus in this system (may exceed NR_CPUS) */
+ extern unsigned int total_cpus;
++extern atomic_t global_cfd_refcount;
+ 
+ int smp_call_function_single(int cpuid, smp_call_func_t func, void *info,
+ 			     int wait);
+diff --git a/kernel/smp.c b/kernel/smp.c
+index d903c022..6d5bf3d9 100644
+--- a/kernel/smp.c
++++ b/kernel/smp.c
+@@ -17,6 +17,12 @@
+ 
+ #include "smpboot.h"
+ 
++#ifdef CONFIG_LOONGSON3_CPUAUTOPLUG
++DECLARE_PER_CPU(int, cpu_adjusting);
++#endif
++
++atomic_t global_cfd_refcount = ATOMIC_INIT(0);
++
+ enum {
+ 	CSD_FLAG_LOCK		= 0x01,
+ 	CSD_FLAG_SYNCHRONOUS	= 0x02,
+@@ -164,6 +170,15 @@ static int generic_exec_single(int cpu, struct call_single_data *csd,
+ 		return -ENXIO;
+ 	}
+ 
++	atomic_inc(&global_cfd_refcount);
++
++#ifdef CONFIG_LOONGSON3_CPUAUTOPLUG
++	if (per_cpu(cpu_adjusting, cpu) < 0) {
++		atomic_dec(&global_cfd_refcount);
++		return -ENXIO;
++	}
++#endif
++
+ 	csd->func = func;
+ 	csd->info = info;
+ 
+@@ -181,6 +196,8 @@ static int generic_exec_single(int cpu, struct call_single_data *csd,
+ 	if (llist_add(&csd->llist, &per_cpu(call_single_queue, cpu)))
+ 		arch_send_call_function_single_ipi(cpu);
+ 
++	atomic_dec(&global_cfd_refcount);
++
+ 	return 0;
+ }
+ 
+@@ -405,7 +422,7 @@ void smp_call_function_many(const struct cpumask *mask,
+ 			    smp_call_func_t func, void *info, bool wait)
+ {
+ 	struct call_function_data *cfd;
+-	int cpu, next_cpu, this_cpu = smp_processor_id();
++	int i, cpu, next_cpu, this_cpu = smp_processor_id();
+ 
+ 	/*
+ 	 * Can deadlock when called with interrupts disabled.
+@@ -436,14 +453,23 @@ void smp_call_function_many(const struct cpumask *mask,
+ 		return;
+ 	}
+ 
++	atomic_inc(&global_cfd_refcount);
++
+ 	cfd = this_cpu_ptr(&cfd_data);
+ 
+ 	cpumask_and(cfd->cpumask, mask, cpu_online_mask);
+ 	cpumask_clear_cpu(this_cpu, cfd->cpumask);
++#ifdef CONFIG_LOONGSON3_CPUAUTOPLUG
++	for_each_possible_cpu(i)
++		if (per_cpu(cpu_adjusting, i) < 0)
++			cpumask_clear_cpu(i, cfd->cpumask);
++#endif
+ 
+ 	/* Some callers race with other cpus changing the passed mask */
+-	if (unlikely(!cpumask_weight(cfd->cpumask)))
++	if (unlikely(!cpumask_weight(cfd->cpumask))) {
++		atomic_dec(&global_cfd_refcount);
+ 		return;
++	}
+ 
+ 	for_each_cpu(cpu, cfd->cpumask) {
+ 		struct call_single_data *csd = per_cpu_ptr(cfd->csd, cpu);
+@@ -467,6 +493,8 @@ void smp_call_function_many(const struct cpumask *mask,
+ 			csd_lock_wait(csd);
+ 		}
+ 	}
++
++	atomic_dec(&global_cfd_refcount);
+ }
+ EXPORT_SYMBOL(smp_call_function_many);
+ 
+-- 
+2.11.0
+

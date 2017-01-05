@@ -1,0 +1,139 @@
+From 9c87413327d51414399f90a2f9b59a467f20a63b Mon Sep 17 00:00:00 2001
+From: Huang Pei <huangpei@loongson.cn>
+Date: Wed, 13 Jul 2016 14:33:17 +0800
+Subject: [PATCH 096/130] MIPS: add gsswxc1/gslwxc1/gsldxc1/gssdxc1 emulation
+ in unaligned.c
+
+Since Loongson 3 class cpu has FP unit, it is NOT necessary to emulate
+in FP emulator, and it is safe to access the fpr in current.thread
+without save/restore fp context for the ADEL/ADES in FP memory access
+can not happen without a proceding CU1/CU2 exception
+
+here is the test result:
+
+-----------------------------------------------
+Emulate Performace Delay: 7807.28%
+-----------------------------------------------
+Test17: unaligned access of gsldxc1
+Emulate Performace Delay: 7807.28%
+-----------------------------------------------
+Test18: unaligned access of gssdxc1
+Emulate Performace Delay: 6786.49%
+-----------------------------------------------
+Test19: unaligned access of gslwxc1
+Emulate Performace Delay: 8081.32%
+-----------------------------------------------
+Test20: unaligned access of gsswxc1
+Emulate Performace Delay: 6122.24%
+-----------------------------------------------
+
+Thanks for Zhou Xiaoyong's test case, great works
+
+Change-Id: I4777278782bc8dfbd7139560b8030a5519a36ffd
+---
+ arch/mips/kernel/unaligned.c | 67 ++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 67 insertions(+)
+
+diff --git a/arch/mips/kernel/unaligned.c b/arch/mips/kernel/unaligned.c
+index f2154ad7..ad79ca59 100644
+--- a/arch/mips/kernel/unaligned.c
++++ b/arch/mips/kernel/unaligned.c
+@@ -1293,6 +1293,8 @@ static void emulate_load_store_insn(struct pt_regs *regs,
+ 		 *   0x1          gslhx: load 2 bytes to GPR
+ 		 *   0x2          gslwx: load 4 bytes to GPR
+ 		 *   0x3          gsldx: load 8 bytes to GPR
++		 *   0x6	  gslwxc1: load 4 bytes to FPR
++		 *   0x7	  gsldxc1: load 8 bytes to FPR
+ 		 */
+ 		case 0x1:
+ 			if (!access_ok(VERIFY_READ, addr, 2))
+@@ -1327,7 +1329,35 @@ static void emulate_load_store_insn(struct pt_regs *regs,
+ 			compute_return_epc(regs);
+ 			regs->regs[insn.loongson3_lsdc2_format.rt] = value;
+ 			break;
++
++		case 0x6:
++			die_if_kernel("Unaligned FP access in kernel code", regs);
++			BUG_ON(!used_math());
++			if (!access_ok(VERIFY_READ, addr, 4))
++				goto sigbus;
++
++			LoadW(addr, value, res);
++			if (res)
++				goto fault;
++			compute_return_epc(regs);
++			set_fpr64(current->thread.fpu.fpr, insn.loongson3_lsdc2_format.rt, value);
++			break;
++
++		case 0x7:
++			die_if_kernel("Unaligned FP access in kernel code", regs);
++			BUG_ON(!used_math());
++			if (!access_ok(VERIFY_READ, addr, 8))
++				goto sigbus;
++
++			LoadDW(addr, value, res);
++			if (res)
++				goto fault;
++			compute_return_epc(regs);
++			set_fpr64(current->thread.fpu.fpr, insn.loongson3_lsdc2_format.rt, value);
++			break;
++
+ 		}
++
+ 		break;
+ 	case sdc2_op:
+ 		switch (insn.loongson3_lsdc2_format.opcode1) {
+@@ -1337,6 +1367,8 @@ static void emulate_load_store_insn(struct pt_regs *regs,
+ 		 *   0x1          gsshx: store 2 bytes from GPR
+ 		 *   0x2          gsswx: store 4 bytes from GPR
+ 		 *   0x3          gssdx: store 8 bytes from GPR
++		 *   0x6          gsswxc1: store 4 bytes from FPR
++		 *   0x7          gssdxc1: store 8 bytes from FPR
+ 		 */
+ 		case 0x1:
+ 			if (!access_ok(VERIFY_WRITE, addr, 2))
+@@ -1374,6 +1406,41 @@ static void emulate_load_store_insn(struct pt_regs *regs,
+ 			if (res)
+ 				goto fault;
+ 			break;
++
++		case 0x6:
++			die_if_kernel("Unaligned FP access in kernel code", regs);
++			BUG_ON(!used_math());
++
++			if (!access_ok(VERIFY_WRITE, addr, 4))
++				goto sigbus;
++
++			compute_return_epc(regs);
++			value = get_fpr64(current->thread.fpu.fpr, insn.loongson3_lsdc2_format.rt);
++
++			StoreW(addr, value, res);
++
++			if (res)
++				goto fault;
++			break;
++
++
++		case 0x7:
++			die_if_kernel("Unaligned FP access in kernel code", regs);
++			BUG_ON(!used_math());
++
++			if (!access_ok(VERIFY_WRITE, addr, 8))
++				goto sigbus;
++
++			compute_return_epc(regs);
++			value = get_fpr64(current->thread.fpu.fpr, insn.loongson3_lsdc2_format.rt);
++
++			StoreDW(addr, value, res);
++
++			if (res)
++				goto fault;
++			break;
++
++
+ 		}
+ 		break;
+ #else
+-- 
+2.11.0
+

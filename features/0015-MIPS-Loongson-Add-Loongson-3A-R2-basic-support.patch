@@ -1,0 +1,163 @@
+From 50948b8960ff0aaa92e670f2cca3c5f627f75811 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Tue, 26 May 2015 15:14:02 +0800
+Subject: [PATCH 015/130] MIPS: Loongson: Add Loongson-3A R2 basic support
+
+Loongson-3 CPU family:
+
+Code-name       Brand-name       PRid
+Loongson-3A R1  Loongson-3A1000  0x6305
+Loongson-3A R2  Loongson-3A2000  0x6308
+Loongson-3B R1  Loongson-3B1000  0x6306
+Loongson-3B R2  Loongson-3B1500  0x6307
+
+Trimed by Junde Yhi to fit upstream codes.
+
+Change-Id: I185836b5f83dba1c914e98723cc710827051935a
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+diff --git a/arch/mips/kernel/cpu-probe.c b/arch/mips/kernel/cpu-probe.c
+index dcafdc79..3d1e9391 100644
+--- a/arch/mips/kernel/cpu-probe.c
++++ b/arch/mips/kernel/cpu-probe.c
+@@ -400,8 +400,9 @@ static inline void cpu_probe_loongson(struct cpuinfo_mips *c, unsigned int cpu)
+ 			c->cputype = CPU_LOONGSON3;
+ 			__cpu_name[cpu] = "ICT Loongson-3";
+ 			set_elf_platform(cpu, "loongson3a");
+ 			set_isa(c, MIPS_CPU_ISA_M64R2);
++			__cpu_full_name[cpu] = "ICT Loongson-3A R2 (Loongson-3A2000)";
+ 			break;
+ 		}
+
+ 		decode_configs(c);
+diff --git a/arch/mips/kernel/idle.c b/arch/mips/kernel/idle.c
+index 46794d64..2f91edf3 100644
+--- a/arch/mips/kernel/idle.c
++++ b/arch/mips/kernel/idle.c
+@@ -184,6 +184,11 @@ void __init check_wait(void)
+ 	case CPU_BMIPS5000:
+ 		cpu_wait = r4k_wait_irqoff;
+ 		break;
++	case CPU_LOONGSON3:
++		if ((read_c0_prid() & 0xf) == PRID_REV_LOONGSON3A_R2)
++			cpu_wait = r4k_wait;
++		break;
++
+ 	case CPU_RM7000:
+ 		cpu_wait = rm7k_wait_irqoff;
+ 		break;
+diff --git a/arch/mips/loongson64/common/platform.c b/arch/mips/loongson64/common/platform.c
+index 7dd5ed46..733a13f4 100644
+--- a/arch/mips/loongson64/common/platform.c
++++ b/arch/mips/loongson64/common/platform.c
+@@ -29,7 +29,7 @@ static int __init loongson_cpufreq_init(void)
+ 	/* Only 2F revision and it's successors support CPUFreq */
+ 	if ((c->processor_id & PRID_REV_MASK) == PRID_REV_LOONGSON2F)
+ 		return platform_device_register(&loongson2_cpufreq_device);
+-	if ((c->processor_id & PRID_REV_MASK) >= PRID_REV_LOONGSON3A)
++	if ((c->processor_id & PRID_REV_MASK) >= PRID_REV_LOONGSON3A_R1)
+ 		return platform_device_register(&loongson3_cpufreq_device);
+
+ 	return -ENODEV;
+diff --git a/arch/mips/loongson64/loongson-3/clock.c b/arch/mips/loongson64/loongson-3/clock.c
+index 13dc4719..118f5394 100644
+--- a/arch/mips/loongson64/loongson-3/clock.c
++++ b/arch/mips/loongson64/loongson-3/clock.c
+@@ -134,11 +134,11 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
+
+ 	clk->rate = rate;
+
+-	if (loongson_sysconf.cputype == Loongson_3A) {
++	if ((read_c0_prid() & 0xf) == PRID_REV_LOONGSON3A_R1) {
+ 		regval = LOONGSON_CHIPCFG(package_id);
+ 		regval = (regval & ~0x7) | (pos->driver_data - 1);
+ 		LOONGSON_CHIPCFG(package_id) = regval;
+-	} else if (loongson_sysconf.cputype == Loongson_3B) {
++	} else {
+ 		regval = LOONGSON_FREQCTRL(package_id);
+ 		regval = (regval & ~(0x7 << (core_id*4))) |
+ 			((pos->driver_data - 1) << (core_id*4));
+
+diff --git a/arch/mips/mm/tlbex.c b/arch/mips/mm/tlbex.c
+index 29f73e00..a508deb3 100644
+--- a/arch/mips/mm/tlbex.c
++++ b/arch/mips/mm/tlbex.c
+@@ -173,7 +173,10 @@ enum label_id {
+ 	label_large_segbits_fault,
+ #ifdef CONFIG_MIPS_HUGE_TLB_SUPPORT
+ 	label_tlb_huge_update,
++	label_tail_huge_miss,
++	label_tail_huge_done,
+ #endif
++	label_tail_miss,
+ };
+
+ UASM_L_LA(_second_part)
+@@ -192,7 +195,10 @@ UASM_L_LA(_r3000_write_probe_fail)
+ UASM_L_LA(_large_segbits_fault)
+ #ifdef CONFIG_MIPS_HUGE_TLB_SUPPORT
+ UASM_L_LA(_tlb_huge_update)
++UASM_L_LA(_tail_huge_miss)
++UASM_L_LA(_tail_huge_done)
+ #endif
++UASM_L_LA(_tail_miss)
+
+ static int hazard_instance;
+
+@@ -702,8 +708,24 @@ static void build_huge_tlb_write_entry(u32 **p, struct uasm_label **l,
+ 	uasm_i_ori(p, tmp, tmp, PM_HUGE_MASK & 0xffff);
+ 	uasm_i_mtc0(p, tmp, C0_PAGEMASK);
+
+-	build_tlb_write_entry(p, l, r, wmode);
++	if (wmode == tlb_random) { /* Caller is TLB Refill Handler */
++		build_tlb_write_entry(p, l, r, wmode);
++		build_restore_pagemask(p, r, tmp, label_leave, restore_scratch);
++		return;
++	}
++
++	/* Caller is TLB Load/Store/Modify Handler */
++	uasm_i_mfc0(p, tmp, C0_INDEX);
++	uasm_il_bltz(p, r, tmp, label_tail_huge_miss);
++	uasm_i_nop(p);
++	build_tlb_write_entry(p, l, r, tlb_indexed);
++	uasm_il_b(p, r, label_tail_huge_done);
++	uasm_i_nop(p);
++
++	uasm_l_tail_huge_miss(l, *p);
++	build_tlb_write_entry(p, l, r, tlb_random);
+
++	uasm_l_tail_huge_done(l, *p);
+ 	build_restore_pagemask(p, r, tmp, label_leave, restore_scratch);
+ }
+
+@@ -1914,7 +1936,14 @@ build_r4000_tlbchange_handler_tail(u32 **p, struct uasm_label **l,
+ 	uasm_i_ori(p, ptr, ptr, sizeof(pte_t));
+ 	uasm_i_xori(p, ptr, ptr, sizeof(pte_t));
+ 	build_update_entries(p, tmp, ptr);
++	uasm_i_mfc0(p, ptr, C0_INDEX);
++	uasm_il_bltz(p, r, ptr, label_tail_miss);
++	uasm_i_nop(p);
+ 	build_tlb_write_entry(p, l, r, tlb_indexed);
++	uasm_il_b(p, r, label_leave);
++	uasm_i_nop(p);
++	uasm_l_tail_miss(l, *p);
++	build_tlb_write_entry(p, l, r, tlb_random);
+ 	uasm_l_leave(l, *p);
+ 	build_restore_work_registers(p);
+ 	uasm_i_eret(p); /* return from trap */
+diff --git a/drivers/cpufreq/loongson3_cpufreq.c b/drivers/cpufreq/loongson3_cpufreq.c
+index 33450020..5e1a1f4b 100644
+--- a/drivers/cpufreq/loongson3_cpufreq.c
++++ b/drivers/cpufreq/loongson3_cpufreq.c
+@@ -22,7 +22,7 @@
+
+ #include <loongson.h>
+
+-static uint nowait;
++static uint nowait = 1;
+ static spinlock_t cpufreq_reg_lock[MAX_PACKAGES];
+
+ static void (*saved_cpu_wait)(void);
+--
+2.11.0

@@ -1,0 +1,510 @@
+From 1d4ef76d92085e24dc775a4a7c829846b470a62b Mon Sep 17 00:00:00 2001
+From: Huang Pei <huangpei@loongson.cn>
+Date: Thu, 18 Aug 2016 14:10:05 +0800
+Subject: [PATCH 130/130] add fused multiply-add suport for loongson 3
+
+add madd.d/madd.s/msub.d/msub.s/nmadd.d/nmadd.s/nmsub.d/nmsub.s
+emaulation for loongson3, this is should be working on loongson2
+
+MIPS R2 suggest floating-point multiply-add instructions is unfused,
+MIPS R6 suggest floating-point mulitply-add instructions is fused,
+however, fused mulitply-add emulation in upstream kernel is not
+following the IEEE754-2008, for losing precision before additon;
+
+For more info, check Document "mips_maddf.rst"
+
+arch/mips/math-emu/Makefile deleted by Junde Yhi.
+arch/mips/math-emu/dp_maddf.c modified by Junde Yhi.
+arch/mips/math-emu/sp_maddf.c modified by Junde Yhi.
+
+Change-Id: Ied37d0a5ed4e83346e03272f8cf27bd5b8c98c9b
+Signed-off-by: Huang Pei <huangpei@loongson.cn>
+---
+ arch/mips/math-emu/Makefile   |   4 +-
+ arch/mips/math-emu/cp1emu.c   |  35 ++++++++-
+ arch/mips/math-emu/dp_maddf.c | 167 +++++++++++++++++++++++++++++++++++++++++-
+ arch/mips/math-emu/ieee754.h  |   8 ++
+ arch/mips/math-emu/sp_maddf.c | 111 +++++++++++++++++++++++++++-
+ 5 files changed, 314 insertions(+), 11 deletions(-)
+
+diff --git a/arch/mips/math-emu/cp1emu.c b/arch/mips/math-emu/cp1emu.c
+index 734a2c76..9d267c87 100644
+--- a/arch/mips/math-emu/cp1emu.c
++++ b/arch/mips/math-emu/cp1emu.c
+@@ -1445,6 +1445,7 @@ static union ieee754sp fpemu_sp_rsqrt(union ieee754sp s)
+ 	return ieee754sp_div(ieee754sp_one(0), ieee754sp_sqrt(s));
+ }
+
++#ifndef  CONFIG_CPU_LOONGSON3
+ DEF3OP(madd, sp, ieee754sp_mul, ieee754sp_add, );
+ DEF3OP(msub, sp, ieee754sp_mul, ieee754sp_sub, );
+ DEF3OP(nmadd, sp, ieee754sp_mul, ieee754sp_add, ieee754sp_neg);
+@@ -1453,6 +1454,7 @@ DEF3OP(madd, dp, ieee754dp_mul, ieee754dp_add, );
+ DEF3OP(msub, dp, ieee754dp_mul, ieee754dp_sub, );
+ DEF3OP(nmadd, dp, ieee754dp_mul, ieee754dp_add, ieee754dp_neg);
+ DEF3OP(nmsub, dp, ieee754dp_mul, ieee754dp_sub, ieee754dp_neg);
++#endif
+
+ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
+ 	mips_instruction ir, void *__user *fault_addr)
+@@ -1506,7 +1508,20 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
+ 				return SIGSEGV;
+ 			}
+ 			break;
+-
++#ifdef CONFIG_CPU_LOONGSON3
++		case madd_s_op:
++			handler = ieee754sp_maddf;
++			goto scoptop;
++		case msub_s_op:
++			handler = ieee754sp_msubf;
++			goto scoptop;
++		case nmadd_s_op:
++			handler = ieee754sp_nmaddf;
++			goto scoptop;
++		case nmsub_s_op:
++			handler = ieee754sp_nmsubf;
++			goto scoptop;
++#else
+ 		case madd_s_op:
+ 			handler = fpemu_sp_madd;
+ 			goto scoptop;
+@@ -1519,6 +1534,7 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
+ 		case nmsub_s_op:
+ 			handler = fpemu_sp_nmsub;
+ 			goto scoptop;
++#endif
+
+ 		      scoptop:
+ 			SPFROMREG(fr, MIPSInst_FR(ir));
+@@ -1602,7 +1618,20 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
+ 				return SIGSEGV;
+ 			}
+ 			break;
+-
++#ifdef CONFIG_CPU_LOONGSON3
++		case madd_d_op:
++			handler = ieee754dp_maddf;
++			goto dcoptop;
++		case msub_d_op:
++			handler = ieee754dp_msubf;
++			goto dcoptop;
++		case nmadd_d_op:
++			handler = ieee754dp_nmaddf;
++			goto dcoptop;
++		case nmsub_d_op:
++			handler = ieee754dp_nmsubf;
++			goto dcoptop;
++#else
+ 		case madd_d_op:
+ 			handler = fpemu_dp_madd;
+ 			goto dcoptop;
+@@ -1615,7 +1644,7 @@ static int fpux_emu(struct pt_regs *xcp, struct mips_fpu_struct *ctx,
+ 		case nmsub_d_op:
+ 			handler = fpemu_dp_nmsub;
+ 			goto dcoptop;
+-
++#endif
+ 		      dcoptop:
+ 			DPFROMREG(fr, MIPSInst_FR(ir));
+ 			DPFROMREG(fs, MIPSInst_FS(ir));
+diff --git a/arch/mips/math-emu/dp_maddf.c b/arch/mips/math-emu/dp_maddf.c
+index 119eda9f..dec8d4f7 100644
+--- a/arch/mips/math-emu/dp_maddf.c
++++ b/arch/mips/math-emu/dp_maddf.c
+@@ -1,7 +1,7 @@
+ /*
+  * IEEE754 floating point arithmetic
+  * double precision: MADDF.f (Fused Multiply Add)
+- * MADDF.fmt: FPR[fd] = FPR[fd] + (FPR[fs] x FPR[ft])
++ * MADDF.fmt: FPR[fd] = FPR[fr] + (FPR[fs] x FPR[ft])
+  *
+  * MIPS floating point support
+  * Copyright (C) 2015 Imagination Technologies, Ltd.
+@@ -14,12 +14,40 @@
+
+ #include "ieee754dp.h"
++
++#define UINT64_C(x) x##ULL
++
++#if defined (CONFIG_CPU_LOONGSON3) || defined (CONFIG_CPU_MIPS64R2)
++inline int dclz(unsigned long int a0)
++{
++	int cnt;
++	asm (
++		"dclz\t%[cnt], %[a0]\n\t"
++		: [cnt] "=&r" (cnt)
++		: [a0] "r" (a0));
++
++	return cnt;
++}
++#else
++inline int dclz(unsigned long int a0)
++{
++	int i = 0;
++
++	while (i < 64) {
++		if (a0 & 0x8000000000000000)
++			return i;
++		a0 <<= 1;
++		i++;
++	}
++	return i;
++}
++#endif
+
+ enum maddf_flags {
+ 	maddf_negate_product	= 1 << 0,
+ };
+
+ static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
+-				 union ieee754dp y, enum maddf_flags flags)
++				 union ieee754dp y, enum maddf_flags flags, int opt)
+ {
+ 	int re;
+ 	int rs;
+@@ -38,5 +38,8 @@ static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
+ 	COMPYDP;
+ 	COMPZDP;
++
++	u64 lzm __maybe_unused;
++	u64 hzm __maybe_unused;
+
+ 	EXPLODEXDP;
+ 	EXPLODEYDP;
+@@ -156,14 +156,20 @@ static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
+ 	assert(ym & DP_HIDDEN_BIT);
+
+ 	re = xe + ye;
++#ifdef CONFIG_CPU_LOONGSON3
++	rs = xs ^ ys ^ (opt & 2);
++	zs = zs ^ (opt & 1) ^ (opt & 2);
++	xm <<= 64 - (DP_FBITS + 2);
++	ym <<= 64 - (DP_FBITS + 2);
++#else
+ 	rs = xs ^ ys;
+ 	if (flags & maddf_negate_product)
+ 		rs ^= 1;
+
+ 	/* shunt to top of word */
+ 	xm <<= 64 - (DP_FBITS + 1);
+ 	ym <<= 64 - (DP_FBITS + 1);
+-
++#endif
+ 	/*
+ 	 * Multiply 64 bits xm, ym to give high 64 bits rm with stickness.
+ 	 */
+@@ -189,7 +224,106 @@ static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
+ 	lrm = at;
+
+ 	hrm = hrm + (t >> 32);
++#ifdef CONFIG_CPU_LOONGSON3
++	/* here we need to normalize hrm|rm */
++	if (hrm < UINT64_C( 0x2000000000000000)) {
++		hrm = (hrm << 1) | ((lrm & 0x8000000000000000) != 0);
++		lrm =  lrm << 1;
++	} else
++		re++;
++
++	rm = hrm | (lrm != 0);
++
++	if (zc == IEEE754_CLASS_ZERO)
++		goto done;
++
++
++	zm = (zm << 9);
++	/* do the 106/105bit + 53bit  */
++	/* adjust mantissa and exponent */
++	s = re - ze;
++	if (s < 0) {
++		re = ze;
++		if ((zs == rs) || (s < -1))
++			hrm = (-s) < 63 ? hrm >> (-s) | ((uint64_t) (hrm << (s & 63)) != 0) :
++				(hrm != 0);
++		else {
++			lrm = hrm << 63 | lrm >> 1 | ((uint64_t) (lrm << 63) != 0);
++			hrm = hrm >> 1;
++		}
++	} else if (s > 0) {
++		if (s < 64) {
++			hzm = zm >> s;
++			lzm = zm << (-s & 63);
++		} else {
++			hzm = 0;
++			lzm = (s < 127) ? zm >> (s & 63) |
++				((zm & (((uint64_t) 1 << ( s & 63)) - 1)) != 0) :
++				(zm != 0);
++		}
++	}
++
++
++	if (zs == rs) {
++		if (s <= 0) {
++			rm = hrm = (hrm + zm) | (lrm != 0);
++		} else {
++			lrm = at = lrm + lzm;
++			hrm = hrm + hzm + (at < lzm);
++			rm = hrm | (lrm != 0);
++		}
++
++		if (rm < UINT64_C(0x4000000000000000))
++			rm <<= 1;
++		else
++			re++;
++
++	} else {
++		if (s < 0) {
++			rs = zs;
++			hrm = zm - hrm - (lrm != 0);
++			lrm = -lrm;
++		} else if (!s) {
++			hrm = hrm - zm;
++			if (!(hrm | lrm))
++				return ieee754dp_zero(ieee754_csr.rm == FPU_CSR_RD);
++			if (hrm & UINT64_C(0x8000000000000000)) {
++				rs = !rs;
++				hrm = -hrm - (lrm != 0);
++				lrm = -lrm;
++			}
++		} else {
++			at =  (lrm < lzm);
++			lrm = lrm - lzm;
++			hrm = hrm - hzm - at;
++		}
+
++		/* adjust the iff if rs != zs */
++		if (!hrm) {
++			re -= 64;
++			hrm = lrm;
++			lrm = 0;
++		}
++		/* adjust exponent */
++		s = dclz(hrm) - 1;
++		re -= (s-1);
++		/* hrm of diff is 0 */
++		if (s < 0)
++			hrm = hrm >> (-s);
++		else {
++			hrm = (hrm << s) | (lrm >> (-s & 63));
++			lrm = lrm << s;
++			rm = hrm;
++		}
++
++		rm |= (lrm != 0);
++	}
++done:
++
++	rm = (rm >> 7) | ((rm & 0x7f) != 0);
++
++	return ieee754dp_format(rs, re, rm);
++#else
+ 	rm = hrm | (lrm != 0);
+
+ 	/*
+@@ -262,4 +396,29 @@ static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
+ 	}
+
+ 	return ieee754dp_format(zs, ze, zm);
++#endif
++}
++
++
++union ieee754dp ieee754dp_maddf(union ieee754dp z, union ieee754dp x,
++				union ieee754dp y)
++{
++	return 	_dp_maddf(z, x, y, 0);
++}
++
++union ieee754dp ieee754dp_nmaddf(union ieee754dp z, union ieee754dp x,
++				union ieee754dp y)
++{
++	return 	_dp_maddf(z, x, y, 1);
++}
++union ieee754dp ieee754dp_msubf(union ieee754dp z, union ieee754dp x,
++				union ieee754dp y)
++{
++	return 	_dp_maddf(z, x, y, 2);
++}
++
++union ieee754dp ieee754dp_nmsubf(union ieee754dp z, union ieee754dp x,
++				union ieee754dp y)
++{
++	return 	_dp_maddf(z, x, y, 3);
+ }
+diff --git a/arch/mips/math-emu/ieee754.h b/arch/mips/math-emu/ieee754.h
+index df947207..3a8ee748 100644
+--- a/arch/mips/math-emu/ieee754.h
++++ b/arch/mips/math-emu/ieee754.h
+@@ -79,6 +79,10 @@ union ieee754sp ieee754sp_maddf(union ieee754sp z, union ieee754sp x,
+ 				union ieee754sp y);
+ union ieee754sp ieee754sp_msubf(union ieee754sp z, union ieee754sp x,
+ 				union ieee754sp y);
++union ieee754sp ieee754sp_nmaddf(union ieee754sp z, union ieee754sp x,
++				union ieee754sp y);
++union ieee754sp ieee754sp_nmsubf(union ieee754sp z, union ieee754sp x,
++				union ieee754sp y);
+ int ieee754sp_2008class(union ieee754sp x);
+ union ieee754sp ieee754sp_fmin(union ieee754sp x, union ieee754sp y);
+ union ieee754sp ieee754sp_fmina(union ieee754sp x, union ieee754sp y);
+@@ -113,6 +117,10 @@ union ieee754dp ieee754dp_maddf(union ieee754dp z, union ieee754dp x,
+ 				union ieee754dp y);
+ union ieee754dp ieee754dp_msubf(union ieee754dp z, union ieee754dp x,
+ 				union ieee754dp y);
++union ieee754dp ieee754dp_nmaddf(union ieee754dp z, union ieee754dp x,
++				union ieee754dp y);
++union ieee754dp ieee754dp_nmsubf(union ieee754dp z, union ieee754dp x,
++				union ieee754dp y);
+ int ieee754dp_2008class(union ieee754dp x);
+ union ieee754dp ieee754dp_fmin(union ieee754dp x, union ieee754dp y);
+ union ieee754dp ieee754dp_fmina(union ieee754dp x, union ieee754dp y);
+diff --git a/arch/mips/math-emu/sp_maddf.c b/arch/mips/math-emu/sp_maddf.c
+index dd1dd83e..fe84efc4 100644
+--- a/arch/mips/math-emu/sp_maddf.c
++++ b/arch/mips/math-emu/sp_maddf.c
+@@ -13,16 +13,23 @@
+  */
+
+ #include "ieee754sp.h"
++#define UINT64_C(x) x##ULL
++int dclz(unsigned long int a0);
+
+ enum maddf_flags {
+ 	maddf_negate_product	= 1 << 0,
+ };
+
+ static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
+-				 union ieee754sp y, enum maddf_flags flags)
++				 union ieee754sp y, enum maddf_flags flags, int opt)
+ {
+ 	int re;
+ 	int rs;
++#ifdef CONFIG_CPU_LOONGSON3
++	u64 rm64;
++	u64 zm64;
++	unsigned rm;
++#else
+ 	unsigned rm;
+ 	unsigned short lxm;
+ 	unsigned short hxm;
+@@ -30,8 +30,10 @@ static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
+ 	unsigned short hym;
+ 	unsigned lrm;
+ 	unsigned hrm;
++
+ 	unsigned t;
+ 	unsigned at;
++#endif
+ 	int s;
+
+ 	COMPXSP;
+@@ -157,6 +157,79 @@ static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
+ 	assert(ym & SP_HIDDEN_BIT);
+
+ 	re = xe + ye;
++#ifdef CONFIG_CPU_LOONGSON3
++	rs = xs ^ ys ^ (opt & 2);
++	zs = zs ^ (opt & 1) ^ (opt & 2);
++
++	xm <<= 32 - (SP_FBITS + 2);
++	ym <<= 32 - (SP_FBITS + 2);
++
++	rm64 = (uint64_t)xm * ym;
++	if (rm64 < UINT64_C(0x2000000000000000))
++		rm64 <<= 1;
++	else
++		++re;
++
++	rm = (rm64 >> 32) | (rm64<<32 != 0);
++	if (zc == IEEE754_CLASS_ZERO)
++		goto done;
++
++	zm = zm << 6;
++	zm64 = ((uint64_t)zm << 32);
++
++	s = re - ze;
++	if (rs == zs) {
++		if (s <= 0) {
++			re = ze;
++			rm64 = (32 - s) < 63 ? rm64 >> (32 - s) |
++				((uint64_t) (rm64 << ((-(32 - s)) & 63)) != 0) : (rm64 != 0);
++			rm = rm64 + zm;
++		} else {
++			zm64 = s < 63 ? zm64 >> s |
++				((uint64_t) (zm64 << (-s & 63))) : (zm64 != 0);
++			rm64 = zm64 + rm64;
++			rm = rm64 >> 32 | ((rm64 & (((uint64_t) 1 << 32) - 1)) != 0);
++		}
++		if (rm < 0x40000000)
++			rm <<= 1;
++		else
++			++re;
++
++	} else {
++		if (s < 0) {
++			rs = zs;
++			re = ze;
++			rm64 = (-s) < 63 ? rm64 >> (-s) |
++				((uint64_t) (rm64 << (s & 63))) : (rm64 != 0);
++			rm64 = zm64 - rm64;
++		} else if(!s) {
++			rm64 = rm64 - zm64;
++			if (!rm64)
++				return ieee754sp_zero(ieee754_csr.rm == FPU_CSR_RD);
++			if (rm64 & UINT64_C(0x8000000000000000)) {
++				rs = !rs;
++				rm64 = -rm64;
++			}
++		} else {
++			zm64 = s < 63 ? zm64 >> s |
++				((uint64_t) (zm64 << (-s & 63))) : (zm64 != 0);
++			rm64 = rm64 - zm64;
++		}
++		s = dclz(rm64) - 1;
++		re -= (s-1);
++
++		s -= 32;
++
++		if (s < 0)
++			rm = rm64 >> (-s) | ((rm64 & (((uint64_t) 1 << (-s)) - 1)) != 0);
++		else
++			rm = (uint32_t) rm64 << s;
++	}
++done:
++	rm = (rm >> 4) | ((rm & 0xf) != 0);
++	return ieee754sp_format(rs, re, rm);
++
++#else
+ 	rs = xs ^ ys;
+ 	if (flags & maddf_negate_product)
+ 		rs ^= 1;
+@@ -184,6 +266,7 @@ static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
+
+ 	rm = hrm | (lrm != 0);
+
++
+ 	/*
+ 	 * Sticky shift down to normal rounding precision.
+ 	 */
+@@ -261,8 +261,20 @@ static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
+
+ 	}
+ 	return ieee754sp_format(zs, ze, zm);
++#endif
+ }
+
++union ieee754sp ieee754sp_nmaddf(union ieee754sp z, union ieee754sp x,
++				union ieee754sp y)
++{
++	return 	_sp_maddf(z, x, y, 1);
++}
++
++union ieee754sp ieee754sp_nmsubf(union ieee754sp z, union ieee754sp x,
++				union ieee754sp y)
++{
++	return 	_sp_maddf(z, x, y, 3);
++
+ union ieee754sp ieee754sp_maddf(union ieee754sp z, union ieee754sp x,
+ 				union ieee754sp y)
+ {
+--
+2.11.0
