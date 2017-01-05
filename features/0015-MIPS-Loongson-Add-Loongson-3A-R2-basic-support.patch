@@ -31,22 +31,6 @@ index dcafdc79..3d1e9391 100644
  		}
 
  		decode_configs(c);
-diff --git a/arch/mips/kernel/idle.c b/arch/mips/kernel/idle.c
-index 46794d64..2f91edf3 100644
---- a/arch/mips/kernel/idle.c
-+++ b/arch/mips/kernel/idle.c
-@@ -184,6 +184,11 @@ void __init check_wait(void)
- 	case CPU_BMIPS5000:
- 		cpu_wait = r4k_wait_irqoff;
- 		break;
-+	case CPU_LOONGSON3:
-+		if ((read_c0_prid() & 0xf) == PRID_REV_LOONGSON3A_R2)
-+			cpu_wait = r4k_wait;
-+		break;
-+
- 	case CPU_RM7000:
- 		cpu_wait = rm7k_wait_irqoff;
- 		break;
 diff --git a/arch/mips/loongson64/common/platform.c b/arch/mips/loongson64/common/platform.c
 index 7dd5ed46..733a13f4 100644
 --- a/arch/mips/loongson64/common/platform.c
