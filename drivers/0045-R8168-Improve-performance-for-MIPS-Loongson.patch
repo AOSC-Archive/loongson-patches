@@ -1,0 +1,79 @@
+From 839971c2e641307092a921b10e46ca990814ea6e Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Fri, 22 Jan 2016 11:44:56 +0800
+Subject: [PATCH 045/130] R8168: Improve performance for MIPS/Loongson
+
+Make network and transport layer data aligned to improve r8168's
+performance, because it is very expensive to handle unaligned access
+on MIPS.
+
+Change-Id: I371a3b65626b1be3bd0f85a5b63c3e704a0ea1fb
+Signed-off-by: Rui Wang <wangr@lemote.com>
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
+---
+ drivers/net/ethernet/realtek/r8168/r8168_n.c | 34 +++++++++++++++++++++++++++-
+ 1 file changed, 33 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/realtek/r8168/r8168_n.c b/drivers/net/ethernet/realtek/r8168/r8168_n.c
+index 1aaab243..1218b4c0 100644
+--- a/drivers/net/ethernet/realtek/r8168/r8168_n.c
++++ b/drivers/net/ethernet/realtek/r8168/r8168_n.c
+@@ -299,7 +299,7 @@ static struct pci_device_id rtl8168_pci_tbl[] = {
+ 
+ MODULE_DEVICE_TABLE(pci, rtl8168_pci_tbl);
+ 
+-static int rx_copybreak = 0;
++static int rx_copybreak = 1515;
+ static int timer_count = 0x2600;
+ 
+ static struct {
+@@ -25095,6 +25095,7 @@ rtl8168_rx_csum(struct rtl8168_private *tp,
+         }
+ }
+ 
++#ifdef CONFIG_R8168_NAPI
+ static inline int
+ rtl8168_try_rx_copy(struct rtl8168_private *tp,
+                     struct sk_buff **sk_buff,
+@@ -25124,6 +25125,37 @@ rtl8168_try_rx_copy(struct rtl8168_private *tp,
+         }
+         return ret;
+ }
++#else
++static inline int
++rtl8168_try_rx_copy(struct rtl8168_private *tp,
++                    struct sk_buff **sk_buff,
++                    int pkt_size,
++                    struct RxDesc *desc,
++                    int rx_buf_sz)
++{
++        int ret = -1;
++
++        if (pkt_size < rx_copybreak) {
++                struct sk_buff *skb;
++
++                skb = RTL_ALLOC_SKB(tp, pkt_size + NET_IP_ALIGN);
++                if (skb) {
++                        u8 *data;
++
++                        data = sk_buff[0]->data;
++                        skb_reserve(skb, NET_IP_ALIGN);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,4,37)
++                        prefetch(data - NET_IP_ALIGN);
++#endif
++                        eth_copy_and_sum(skb, data, pkt_size, 0);
++                        *sk_buff = skb;
++                        rtl8168_mark_to_asic(desc, rx_buf_sz);
++                        ret = 0;
++                }
++        }
++        return ret;
++}
++#endif
+ 
+ static inline void
+ rtl8168_rx_skb(struct rtl8168_private *tp,
+-- 
+2.11.0
+
