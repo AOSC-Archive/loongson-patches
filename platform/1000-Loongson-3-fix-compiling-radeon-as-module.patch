@@ -1,0 +1,32 @@
+From 332f859897f0210c35cbad1463d4c0388602dfd9 Mon Sep 17 00:00:00 2001
+From: Wang Xuerui <idontknw.wang@gmail.com>
+Date: Tue, 9 Aug 2016 20:48:38 +0800
+Subject: [PATCH] Loongson 3: fix compiling radeon as module
+
+---
+ arch/mips/loongson64/loongson-3/workarounds.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/mips/loongson64/loongson-3/workarounds.c b/arch/mips/loongson64/loongson-3/workarounds.c
+index a73e12906..2b71580a8 100644
+--- a/arch/mips/loongson64/loongson-3/workarounds.c
++++ b/arch/mips/loongson64/loongson-3/workarounds.c
+@@ -27,6 +27,7 @@ void turn_off_lvds(void)
+ 	if (loongson_sysconf.workarounds & WORKAROUND_LVDS_GPIO)
+ 		gpio_lvds_off();
+ }
++EXPORT_SYMBOL(turn_off_lvds);
+ 
+ void turn_on_lvds(void)
+ {
+@@ -35,6 +36,7 @@ void turn_on_lvds(void)
+ 	if (loongson_sysconf.workarounds & WORKAROUND_LVDS_GPIO)
+ 		gpio_lvds_on();
+ }
++EXPORT_SYMBOL(turn_on_lvds);
+ 
+ static int __init usb_fix_for_tmcs(void)
+ {
+-- 
+2.11.0
+

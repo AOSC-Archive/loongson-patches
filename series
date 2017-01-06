@@ -52,3 +52,4 @@ platform/0037-MIPS-Loongson-Add-PMON-read-write-in-OS-support.patch
 platform/0041-Fix-touchpad-status-error-after-STR-STD.patch
 platform/0043-MIPS-Loongson-Add-support-for-smbios.patch
 platform/0106-Detect-SpeedPercentThreshold-asynchronously-for-SBX0.patch
+platform/1000-Loongson-3-fix-compiling-radeon-as-module.patch
