@@ -1,8 +1,6 @@
 drivers/0044-Add-R8168-drivers-from-realtek-8.042.00.patch
 drivers/0045-R8168-Improve-performance-for-MIPS-Loongson.patch
 drivers/0047-R8168-Detect-and-recover-weird-rx-hang-bug.patch
-drivers/0071-Loongson-Add-Vivante-GPU-driver-for-Loongson-2H.patch
-drivers/0072-Loongson-Add-LS2H-HD-Audio-support.patch
 drivers/0114-R8168-Detect-and-recover-weird-rx-hang-bug-V2.patch
 drivers/1000-r8168-fix-build-for-4.6.patch
 drivers/1001-r8168-fix-build-for-4.7.patch
