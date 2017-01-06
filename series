@@ -4,6 +4,8 @@ drivers/0047-R8168-Detect-and-recover-weird-rx-hang-bug.patch
 drivers/0071-Loongson-Add-Vivante-GPU-driver-for-Loongson-2H.patch
 drivers/0072-Loongson-Add-LS2H-HD-Audio-support.patch
 drivers/0114-R8168-Detect-and-recover-weird-rx-hang-bug-V2.patch
+drivers/1000-r8168-fix-build-for-4.6.patch
+drivers/1001-r8168-fix-build-for-4.7.patch
 platform/0028-MIPS-Loongson-Add-suspend-support-for-Loongson-3-Lap.patch
 features/0013-MIPS-Loongson-Make-CPUFreq-usable-for-Loongson-3.patch
 features/0014-MIPS-Add-__cpu_full_name-to-make-CPU-names-more-huma.patch

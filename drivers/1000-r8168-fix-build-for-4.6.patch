@@ -1,0 +1,25 @@
+From 3511399886d54696cf6ff1c2a2d31a08c748d5e2 Mon Sep 17 00:00:00 2001
+From: Wang Xuerui <idontknw.wang@gmail.com>
+Date: Wed, 10 Aug 2016 21:10:03 +0800
+Subject: [PATCH] r8168: fix build for 4.6
+
+---
+ drivers/net/ethernet/realtek/r8168/r8168_n.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/realtek/r8168/r8168_n.c b/drivers/net/ethernet/realtek/r8168/r8168_n.c
+index 644375b1b..7799795f9 100644
+--- a/drivers/net/ethernet/realtek/r8168/r8168_n.c
++++ b/drivers/net/ethernet/realtek/r8168/r8168_n.c
+@@ -24582,7 +24582,7 @@ static void rtl8168_recover(struct rtl8168_private *tp)
+ 
+         for (i = 0; i < NUM_RX_DESC; i++) {
+                 if (!tp->Rx_skbuff[i])
+-                        rtl8168_alloc_rx_skb(tp->pci_dev, tp->Rx_skbuff + i,
++                        rtl8168_alloc_rx_skb(tp, tp->Rx_skbuff + i,
+                                            tp->RxDescArray + i, tp->rx_buf_sz);
+         }
+ 
+-- 
+2.11.0
+
