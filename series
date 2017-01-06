@@ -41,6 +41,7 @@ features/0127-MIPS-Add-MIPS_CPU_FTLB-for-Loongson-3A-R2.patch
 features/0128-MIPS-Check-TLB-before-handle_ri_rdhwr-for-Loongson-3.patch
 features/0129-MIPS-Flush-wrong-invalid-FTLB-entry-for-huge-page.patch
 features/0130-add-fused-multiply-add-suport-for-loongson-3.patch
+features/1000-MIPS-loongson64-fix-build.patch
 platform/0026-MIPS-Loongson-3-Add-basic-EC-operations.patch
 platform/0027-MIPS-Loongson-3-Add-platform-device-drivers.patch
 platform/0029-MIPS-Loongson-Add-the-multifunction-keys-Fnkey-suppo.patch
