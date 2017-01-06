@@ -1,0 +1,25 @@
+From 2ff9f217eec7396f9fec2c8425898a067592d203 Mon Sep 17 00:00:00 2001
+From: Wang Xuerui <idontknw.wang@gmail.com>
+Date: Fri, 2 Sep 2016 23:58:11 +0800
+Subject: [PATCH 5/5] mask generic sched_clock impl
+
+---
+ arch/mips/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index 5c12a3c0d..4d5178bd7 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -47,7 +47,7 @@ config MIPS
+ 	select GENERIC_SMP_IDLE_THREAD
+ 	select BUILDTIME_EXTABLE_SORT
+ 	select GENERIC_CLOCKEVENTS
+-	select GENERIC_SCHED_CLOCK if !CAVIUM_OCTEON_SOC
++	select GENERIC_SCHED_CLOCK if !CAVIUM_OCTEON_SOC && !LOONGSON_EXTCC_CLKSRC
+ 	select GENERIC_CMOS_UPDATE
+ 	select HAVE_MOD_ARCH_SPECIFIC
+ 	select HAVE_NMI
+-- 
+2.11.0
+

@@ -1,0 +1,61 @@
+From 32aab1a078d61e201a9ebd4fb17e59b36c46d036 Mon Sep 17 00:00:00 2001
+From: Wang Xuerui <idontknw.wang@gmail.com>
+Date: Fri, 2 Sep 2016 20:29:05 +0800
+Subject: [PATCH 2/5] Kconfig support for extcc clksrc
+
+---
+ arch/mips/loongson64/Kconfig             | 18 ++++++++++++++++++
+ arch/mips/loongson64/loongson-3/Makefile |  4 ++--
+ 2 files changed, 20 insertions(+), 2 deletions(-)
+
+diff --git a/arch/mips/loongson64/Kconfig b/arch/mips/loongson64/Kconfig
+index 7e5bb302f..1fc40d892 100644
+--- a/arch/mips/loongson64/Kconfig
++++ b/arch/mips/loongson64/Kconfig
+@@ -121,6 +121,24 @@ config RS780_HPET
+ 
+ 	  If unsure, say Yes.
+ 
++config LOONGSON_EXTCC_CLKSRC
++	bool "Use GS464E external counter as clocksource"
++	depends on LOONGSON3_ENHANCEMENT && RS780_HPET
++	help
++	  This option enables the external counter found on GS464E chips to
++	  be used as clocksource.
++
++	  The external counter is an internal cycle counter independent of
++	  processor cores, and provides very good time resolution (1GHz on
++	  3A2000).
++
++	  As the Loongson processors in general lack an on-chip timer that is
++	  stable in terms of frequency, like the PIT on x86 systems,
++	  only systems with HPET are supported now. Currently this means you
++	  have to enable RS780_HPET to use this feature.
++
++	  If unsure, say Y.
++
+ config LOONGSON_UART_BASE
+ 	bool
+ 	default y
+diff --git a/arch/mips/loongson64/loongson-3/Makefile b/arch/mips/loongson64/loongson-3/Makefile
+index 7596ff64d..f96cfa432 100644
+--- a/arch/mips/loongson64/loongson-3/Makefile
++++ b/arch/mips/loongson64/loongson-3/Makefile
+@@ -4,8 +4,6 @@
+ obj-y			+= irq.o cop2-ex.o platform.o acpi_init.o clock.o ec_wpce775l.o workarounds.o \
+ 			   ls2h-irq.o ls2h-platform.o rs780-irq.o rs780-platform.o loongson3-memset.o loongson3-memcpy.o
+ 
+-obj-$(CONFIG_LOONGSON3_ENHANCEMENT) += tsc_extcc.o
+-
+ obj-$(CONFIG_SMP)	+= smp.o
+ 
+ obj-$(CONFIG_NUMA)	+= numa.o
+@@ -15,3 +13,5 @@ obj-$(CONFIG_SUSPEND)	+= pm.o sleep.o
+ obj-$(CONFIG_RS780_HPET) += hpet.o
+ 
+ obj-$(CONFIG_LOONGSON3_CPUAUTOPLUG) += loongson3_cpuautoplug.o
++
++obj-$(CONFIG_LOONGSON_EXTCC_CLKSRC) += tsc_extcc.o
+-- 
+2.11.0
+
