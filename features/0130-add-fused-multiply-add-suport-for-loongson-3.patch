@@ -121,7 +121,7 @@ index 119eda9f..dec8d4f7 100644
   *
   * MIPS floating point support
   * Copyright (C) 2015 Imagination Technologies, Ltd.
-@@ -14,12 +14,40 @@
+@@ -14,12 +14,45 @@
 
  #include "ieee754dp.h"
 +
@@ -157,9 +157,13 @@ index 119eda9f..dec8d4f7 100644
  	maddf_negate_product	= 1 << 0,
  };
 
++#ifdef CONFIG_CPU_LOONGSON3
++static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
++				 union ieee754dp y, int opt)
++#else
  static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
--				 union ieee754dp y, enum maddf_flags flags)
-+				 union ieee754dp y, enum maddf_flags flags, int opt)
+ 				 union ieee754dp y, enum maddf_flags flags)
++#endif
  {
  	int re;
  	int rs;
@@ -301,29 +305,32 @@ index 119eda9f..dec8d4f7 100644
  	rm = hrm | (lrm != 0);
 
  	/*
-@@ -262,4 +396,29 @@ static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
+@@ -268,6 +268,7 @@ static union ieee754dp _dp_maddf(union ieee754dp z, union ieee754dp x,
  	}
 
  	return ieee754dp_format(zs, ze, zm);
 +#endif
-+}
-+
-+
-+union ieee754dp ieee754dp_maddf(union ieee754dp z, union ieee754dp x,
-+				union ieee754dp y)
-+{
-+	return 	_dp_maddf(z, x, y, 0);
-+}
-+
+ }
+
+ union ieee754dp ieee754dp_maddf(union ieee754dp z, union ieee754dp x,
+@@ -275,8 +275,24 @@ union ieee754dp ieee754dp_maddf(union ieee754dp z, union ieee754dp x,
+ 	return _dp_maddf(z, x, y, 0);
+ }
+
 +union ieee754dp ieee754dp_nmaddf(union ieee754dp z, union ieee754dp x,
 +				union ieee754dp y)
 +{
 +	return 	_dp_maddf(z, x, y, 1);
 +}
-+union ieee754dp ieee754dp_msubf(union ieee754dp z, union ieee754dp x,
-+				union ieee754dp y)
-+{
-+	return 	_dp_maddf(z, x, y, 2);
++
+ union ieee754dp ieee754dp_msubf(union ieee754dp z, union ieee754dp x,
+ 				union ieee754dp y)
+ {
++#ifdef CONFIG_CPU_LOONGSON3
++	return _dp_maddf(z, x, y, 2);
++#else
+ 	return _dp_maddf(z, x, y, maddf_negate_product);
++#endif
 +}
 +
 +union ieee754dp ieee754dp_nmsubf(union ieee754dp z, union ieee754dp x,
@@ -331,6 +338,7 @@ index 119eda9f..dec8d4f7 100644
 +{
 +	return 	_dp_maddf(z, x, y, 3);
  }
+
 diff --git a/arch/mips/math-emu/ieee754.h b/arch/mips/math-emu/ieee754.h
 index df947207..3a8ee748 100644
 --- a/arch/mips/math-emu/ieee754.h
@@ -361,7 +369,7 @@ diff --git a/arch/mips/math-emu/sp_maddf.c b/arch/mips/math-emu/sp_maddf.c
 index dd1dd83e..fe84efc4 100644
 --- a/arch/mips/math-emu/sp_maddf.c
 +++ b/arch/mips/math-emu/sp_maddf.c
-@@ -13,16 +13,23 @@
+@@ -13,16 +13,28 @@
   */
 
  #include "ieee754sp.h"
@@ -372,9 +380,13 @@ index dd1dd83e..fe84efc4 100644
  	maddf_negate_product	= 1 << 0,
  };
 
++#ifdef CONFIG_CPU_LOONGSON3
++static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
++				 union ieee754sp y, int opt)
++#else
  static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
--				 union ieee754sp y, enum maddf_flags flags)
-+				 union ieee754sp y, enum maddf_flags flags, int opt)
+ 				 union ieee754sp y, enum maddf_flags flags)
++#endif
  {
  	int re;
  	int rs;
@@ -477,19 +489,16 @@ index dd1dd83e..fe84efc4 100644
  	rs = xs ^ ys;
  	if (flags & maddf_negate_product)
  		rs ^= 1;
-@@ -184,6 +266,7 @@ static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
-
- 	rm = hrm | (lrm != 0);
-
-+
- 	/*
- 	 * Sticky shift down to normal rounding precision.
- 	 */
-@@ -261,8 +261,20 @@ static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
+@@ -261,6 +261,7 @@ static union ieee754sp _sp_maddf(union ieee754sp z, union ieee754sp x,
 
  	}
  	return ieee754sp_format(zs, ze, zm);
 +#endif
+ }
+
+ union ieee754sp ieee754sp_maddf(union ieee754sp z, union ieee754sp x,
+@@ -269,8 +269,24 @@ union ieee754sp ieee754sp_maddf(union ieee754sp z, union ieee754sp x,
+ 	return _sp_maddf(z, x, y, 0);
  }
 
 +union ieee754sp ieee754sp_nmaddf(union ieee754sp z, union ieee754sp x,
@@ -498,13 +507,21 @@ index dd1dd83e..fe84efc4 100644
 +	return 	_sp_maddf(z, x, y, 1);
 +}
 +
+ union ieee754sp ieee754sp_msubf(union ieee754sp z, union ieee754sp x,
+ 				union ieee754sp y)
+ {
++#ifdef CONFIG_CPU_LOONGSON3
++	return _sp_maddf(z, x, y, 2);
++#else
+ 	return _sp_maddf(z, x, y, maddf_negate_product);
++#endif
++}
++
 +union ieee754sp ieee754sp_nmsubf(union ieee754sp z, union ieee754sp x,
 +				union ieee754sp y)
 +{
 +	return 	_sp_maddf(z, x, y, 3);
-+
- union ieee754sp ieee754sp_maddf(union ieee754sp z, union ieee754sp x,
- 				union ieee754sp y)
- {
+ }
+
 --
 2.11.0
