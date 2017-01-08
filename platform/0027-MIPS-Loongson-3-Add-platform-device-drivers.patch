@@ -1853,7 +1853,7 @@ index 00000000..e4f8476f
 +				get_fan_mode, set_fan_mode, 3);
 +static SENSOR_DEVICE_ATTR(fan3_input, S_IRUGO, get_fan_speed, NULL, 3);
 +
-+static const struct attribute *hwmon_fan[3][4] = {
++static const struct attribute *hwmon_fans[3][4] = {
 +	{
 +		&sensor_dev_attr_pwm1.dev_attr.attr,
 +		&sensor_dev_attr_pwm1_enable.dev_attr.attr,
@@ -2293,7 +2293,7 @@ index 00000000..e4f8476f
 +	sbx00_fan_mode[id] = FAN_AUTO_MODE;
 +	sbx00_fan_start_auto(id);
 +
-+	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fan[id]);
++	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fans[id]);
 +	if (ret) {
 +		printk(KERN_ERR "fail to create sysfs files\n");
 +		return ret;
@@ -2534,7 +2534,7 @@ index 00000000..0ff50c9d
 +				get_fan_mode, set_fan_mode, 1);
 +static SENSOR_DEVICE_ATTR(fan1_input, S_IRUGO, get_fan_speed, NULL, 1);
 +
-+static const struct attribute *hwmon_fan1[] = {
++static const struct attribute *hwmon_fans1[] = {
 +	&sensor_dev_attr_pwm1.dev_attr.attr,
 +	&sensor_dev_attr_pwm1_enable.dev_attr.attr,
 +	&sensor_dev_attr_fan1_input.dev_attr.attr,
@@ -2707,7 +2707,7 @@ index 00000000..0ff50c9d
 +	fan_mode = FAN_AUTO_MODE;
 +	fan_start_auto();
 +
-+	ret = sysfs_create_files(&wpce775l_hwmon_dev->kobj, hwmon_fan1);
++	ret = sysfs_create_files(&wpce775l_hwmon_dev->kobj, hwmon_fans1);
 +	if (ret) {
 +		printk(KERN_ERR "fail to create sysfs files\n");
 +		return ret;

@@ -36,7 +36,7 @@ index e4f8476f..c22f6cc3 100644
 +	sbx00_fan_mode[0] = FAN_AUTO_MODE;
 +	sbx00_fan_start_auto(0);
 +
-+	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fan[0]);
++	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fans[0]);
 +	if (ret)
 +		printk(KERN_ERR "fail to create sysfs files\n");
  }
@@ -64,7 +64,7 @@ index e4f8476f..c22f6cc3 100644
 +	sbx00_fan_mode[1] = FAN_AUTO_MODE;
 +	sbx00_fan_start_auto(1);
 +
-+	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fan[1]);
++	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fans[1]);
 +	if (ret)
 +		printk(KERN_ERR "fail to create sysfs files\n");
  }
@@ -92,7 +92,7 @@ index e4f8476f..c22f6cc3 100644
 +	sbx00_fan_mode[2] = FAN_AUTO_MODE;
 +	sbx00_fan_start_auto(2);
 +
-+	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fan[2]);
++	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fans[2]);
 +	if (ret)
 +		printk(KERN_ERR "fail to create sysfs files\n");
  }
@@ -135,7 +135,7 @@ index e4f8476f..c22f6cc3 100644
 -	sbx00_fan_mode[id] = FAN_AUTO_MODE;
 -	sbx00_fan_start_auto(id);
 -
--	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fan[id]);
+-	ret = sysfs_create_files(&sbx00_hwmon_dev->kobj, hwmon_fans[id]);
 -	if (ret) {
 -		printk(KERN_ERR "fail to create sysfs files\n");
 -		return ret;
