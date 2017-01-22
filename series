@@ -25,6 +25,7 @@ features/0075-Optimize-clear_page.patch
 features/0076-Optimize-copy_page.patch
 features/0077-memset-optimization-for-loongson-3.patch
 features/0078-memcpy-optimization-for-loongson-3.patch
+features/0080-MIPS-Loongson-3-Disable-gcc-fix-ls3a-llsc-for-futex.patch
 features/0081-MIPS-Loongson64-Adjust-serial-clock-for-loongson-3a1.patch
 features/0091-Loongson-3-Workaround-for-loongson3a2000-four-way.patch
 features/0094-MIPS-Add-loongson3-gslh-w-dx-gssh-w-dx-unaligned-acc.patch
