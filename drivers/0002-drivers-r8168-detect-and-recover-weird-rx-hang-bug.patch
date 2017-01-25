@@ -1,21 +1,8 @@
-From 614bd0f796b1768ed1e83b20f5dfc1a5e7033e4b Mon Sep 17 00:00:00 2001
-From: Huacai Chen <chenhc@lemote.com>
-Date: Tue, 3 May 2016 13:46:52 +0800
-Subject: [PATCH 047/130] R8168: Detect and recover weird rx hang bug
-
-Change-Id: I98620ff976403e405b378943105befe80a518269
-Signed-off-by: Huacai Chen <chenhc@lemote.com>
-Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
----
- drivers/net/ethernet/realtek/r8168/r8168.h   |  3 ++
- drivers/net/ethernet/realtek/r8168/r8168_n.c | 73 ++++++++++++++++++++++++++--
- 2 files changed, 71 insertions(+), 5 deletions(-)
-
 diff --git a/drivers/net/ethernet/realtek/r8168/r8168.h b/drivers/net/ethernet/realtek/r8168/r8168.h
-index b07438d8..8201bfbc 100644
+index 26720b6..53e0fa3 100644
 --- a/drivers/net/ethernet/realtek/r8168/r8168.h
 +++ b/drivers/net/ethernet/realtek/r8168/r8168.h
-@@ -1291,6 +1291,9 @@ struct rtl8168_private {
+@@ -1290,6 +1290,9 @@ struct rtl8168_private {
          u32 cur_tx; /* Index into the Tx descriptor buffer of next Rx pkt. */
          u32 dirty_rx;
          u32 dirty_tx;
@@ -26,10 +13,10 @@ index b07438d8..8201bfbc 100644
          struct RxDesc *RxDescArray; /* 256-aligned Rx descriptor ring */
          dma_addr_t TxPhyAddr;
 diff --git a/drivers/net/ethernet/realtek/r8168/r8168_n.c b/drivers/net/ethernet/realtek/r8168/r8168_n.c
-index 1218b4c0..644375b1 100644
+index 789b335..fd30218 100644
 --- a/drivers/net/ethernet/realtek/r8168/r8168_n.c
 +++ b/drivers/net/ethernet/realtek/r8168/r8168_n.c
-@@ -388,7 +388,7 @@ static int rtl8168_close(struct net_device *dev);
+@@ -402,7 +402,7 @@ static int rtl8168_close(struct net_device *dev);
  static void rtl8168_set_rx_mode(struct net_device *dev);
  static void rtl8168_tx_timeout(struct net_device *dev);
  static struct net_device_stats *rtl8168_get_stats(struct net_device *dev);
@@ -37,38 +24,38 @@ index 1218b4c0..644375b1 100644
 +static int rtl8168_rx_interrupt(struct net_device *, struct rtl8168_private *, void __iomem *, u32 budget, u32 intsts);
  static int rtl8168_change_mtu(struct net_device *dev, int new_mtu);
  static void rtl8168_down(struct net_device *dev);
- 
-@@ -22862,6 +22862,10 @@ rtl8168_init_one(struct pci_dev *pdev,
- 
+
+@@ -23018,6 +23018,10 @@ rtl8168_init_one(struct pci_dev *pdev,
+
          netif_carrier_off(dev);
- 
+
 +        tp->old_rx = 0;
 +        tp->weird_hang_count = 0;
 +        tp->weird_hang_recheck = 0;
 +
          printk("%s", GPL_CLAIM);
- 
+
  out:
-@@ -24533,7 +24537,7 @@ static void rtl8168_reset_task(struct work_struct *work)
- 
+@@ -24697,7 +24701,7 @@ static void rtl8168_reset_task(struct work_struct *work)
+
          rtl8168_wait_for_quiescence(dev);
- 
+
 -        rtl8168_rx_interrupt(dev, tp, tp->mmio_addr, ~(u32)0);
 +        rtl8168_rx_interrupt(dev, tp, tp->mmio_addr, ~(u32)0, 0);
- 
+
          spin_lock_irqsave(&tp->lock, flags);
- 
-@@ -24558,6 +24562,37 @@ static void rtl8168_reset_task(struct work_struct *work)
+
+@@ -24722,6 +24726,37 @@ static void rtl8168_reset_task(struct work_struct *work)
          }
  }
- 
+
 +static void rtl8168_recover(struct rtl8168_private *tp)
 +{
 +        unsigned long i, flags;
 +        struct net_device *dev = tp->dev;
 +
 +        spin_lock_irqsave(&tp->lock, flags);
-+
++#if 0
 +        for (i = 0; i < NUM_RX_DESC; i++) {
 +                if (tp->Rx_skbuff[i])
 +                        rtl8168_free_rx_skb(tp, tp->Rx_skbuff + i,
@@ -87,7 +74,7 @@ index 1218b4c0..644375b1 100644
 +        }
 +
 +        rtl8168_mark_as_last_descriptor(tp->RxDescArray + NUM_RX_DESC - 1);
-+
++#endif
 +        rtl8168_set_speed(dev, tp->autoneg, tp->speed, tp->duplex);
 +
 +        spin_unlock_irqrestore(&tp->lock, flags);
@@ -96,10 +83,10 @@ index 1218b4c0..644375b1 100644
  static void
  rtl8168_tx_timeout(struct net_device *dev)
  {
-@@ -25172,10 +25207,17 @@ rtl8168_rx_skb(struct rtl8168_private *tp,
+@@ -25308,10 +25343,17 @@ rtl8168_rx_skb(struct rtl8168_private *tp,
  #endif
  }
- 
+
 +#ifdef CONFIG_R8168_NAPI
 +#define CHKCNT 3
 +#else
@@ -115,24 +102,15 @@ index 1218b4c0..644375b1 100644
  {
          unsigned int cur_rx, rx_left;
          unsigned int delta, count = 0;
-@@ -25197,6 +25239,9 @@ rtl8168_rx_interrupt(struct net_device *dev,
-         rx_left = NUM_RX_DESC + tp->dirty_rx - cur_rx;
-         rx_left = rtl8168_rx_quota(rx_left, (u32)rx_quota);
- 
-+	if (intsts & RxOK)
-+		tp->old_rx = tp->cur_rx;
-+
-         for (; rx_left > 0; rx_left--) {
-                 rmb();
-                 status = le32_to_cpu(desc->opts1);
-@@ -25302,6 +25347,23 @@ process_pkt:
+@@ -25438,6 +25480,24 @@ process_pkt:
          if ((tp->dirty_rx + NUM_RX_DESC == tp->cur_rx) && netif_msg_intr(tp))
                  printk(KERN_EMERG "%s: Rx buffers exhausted\n", dev->name);
- 
+
 +	if (intsts & RX_EVENT) {
-+		if (tp->cur_rx != tp->old_rx)
++		if (tp->cur_rx != tp->old_rx) {
++                        tp->old_rx = tp->cur_rx;
 +                        tp->weird_hang_recheck = 0;
-+		else {
++		} else {
 +                        if (tp->weird_hang_recheck < CHKCNT)
 +                                tp->weird_hang_recheck += 1;
 +                        else {
@@ -149,26 +127,23 @@ index 1218b4c0..644375b1 100644
  rx_out:
          return count;
  }
-@@ -25435,7 +25497,7 @@ static irqreturn_t rtl8168_interrupt(int irq, void *dev_instance)
+@@ -25567,7 +25627,7 @@ static irqreturn_t rtl8168_interrupt(int irq, void *dev_instance)
                  if (status & tp->intr_mask || tp->keep_intr_cnt > 0) {
                          if (tp->keep_intr_cnt > 0) tp->keep_intr_cnt--;
- 
+
 -                        rtl8168_rx_interrupt(dev, tp, tp->mmio_addr, ~(u32)0);
 +                        rtl8168_rx_interrupt(dev, tp, tp->mmio_addr, ~(u32)0, status);
                          rtl8168_tx_interrupt(dev, tp, ioaddr);
- 
+
  #ifdef ENABLE_DASH_SUPPORT
-@@ -25467,8 +25529,9 @@ static int rtl8168_poll(napi_ptr napi, napi_budget budget)
+@@ -25599,8 +25659,9 @@ static int rtl8168_poll(napi_ptr napi, napi_budget budget)
          unsigned int work_to_do = RTL_NAPI_QUOTA(budget, dev);
          unsigned int work_done;
          unsigned long flags;
 +        int status = RTL_R16(IntrStatus);
- 
+
 -        work_done = rtl8168_rx_interrupt(dev, tp, ioaddr, (u32) budget);
 +        work_done = rtl8168_rx_interrupt(dev, tp, ioaddr, (u32) budget, status);
- 
+
          spin_lock_irqsave(&tp->lock, flags);
          rtl8168_tx_interrupt(dev, tp, ioaddr);
--- 
-2.11.0
-
