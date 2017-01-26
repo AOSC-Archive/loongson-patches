@@ -1,8 +1,11 @@
+This patch adds standby and suspend functions for Loongson-3 based laptops.
+
+Original patch description:
+
 From 3d62d65b82cfa64c0ef9b50a03dd22025f476c25 Mon Sep 17 00:00:00 2001
 From: Huacai Chen <chenhc@lemote.com>
 Date: Wed, 6 Nov 2013 15:19:00 +0800
-Subject: [PATCH 028/130] MIPS: Loongson: Add suspend support for Loongson-3
- Laptop.
+Subject: MIPS: Loongson: Add suspend support for Loongson-3 Laptop.
 
 Add standby and suspend functions for Loongson-3 based laptops.
 
@@ -11,31 +14,20 @@ Signed-off-by: Huacai Chen <chenhc@lemote.com>
 Signed-off-by: Hongliang Tao <taohl@lemote.com>
 Signed-off-by: Hua Yan <yanh@lemote.com>
 Signed-off-by: Zhang Shuangshuang <zhangshuangshuang@ict.ac.cn>
----
- arch/mips/include/asm/mach-loongson64/loongson.h |   2 +
- arch/mips/loongson64/common/pm.c                 | 155 +++++++++++++++++---
- arch/mips/loongson64/lemote-2f/pm.c              |   4 +-
- arch/mips/loongson64/loongson-3/Makefile         |   2 +
- arch/mips/loongson64/loongson-3/acpi_init.c      |  29 ++++
- arch/mips/loongson64/loongson-3/pm.c             | 147 +++++++++++++++++++
- arch/mips/loongson64/loongson-3/sleep.S          | 172 +++++++++++++++++++++++
- 7 files changed, 491 insertions(+), 20 deletions(-)
- create mode 100644 arch/mips/loongson64/loongson-3/pm.c
- create mode 100644 arch/mips/loongson64/loongson-3/sleep.S
 
 diff --git a/arch/mips/include/asm/mach-loongson64/loongson.h b/arch/mips/include/asm/mach-loongson64/loongson.h
-index 78d4d9cd..aa165e51 100644
+index c68c0cc..0db9ccb 100644
 --- a/arch/mips/include/asm/mach-loongson64/loongson.h
 +++ b/arch/mips/include/asm/mach-loongson64/loongson.h
-@@ -358,4 +358,6 @@ extern unsigned long _loongson_addrwincfg_base;
- 
+@@ -356,4 +356,6 @@ extern unsigned long _loongson_addrwincfg_base;
+
  #endif	/* ! CONFIG_CPU_SUPPORTS_ADDRWINCFG */
- 
+
 +void loongson_suspend_lowlevel(void);
 +
  #endif /* __ASM_MACH_LOONGSON64_LOONGSON_H */
 diff --git a/arch/mips/loongson64/common/pm.c b/arch/mips/loongson64/common/pm.c
-index a6b67ccf..9ff5e74d 100644
+index a6b67cc..9ff5e74 100644
 --- a/arch/mips/loongson64/common/pm.c
 +++ b/arch/mips/loongson64/common/pm.c
 @@ -1,8 +1,9 @@
@@ -50,18 +42,18 @@ index a6b67ccf..9ff5e74d 100644
   * This program is free software; you can redistribute it and/or modify
   * it under the terms of the GNU General Public License as published by
 @@ -15,13 +16,43 @@
- 
+
  #include <asm/i8259.h>
  #include <asm/mipsregs.h>
 +#include <asm/bootinfo.h>
- 
+
  #include <loongson.h>
 +#include <mc146818rtc.h>
- 
+
  static unsigned int __maybe_unused cached_master_mask;	/* i8259A */
  static unsigned int __maybe_unused cached_slave_mask;
  static unsigned int __maybe_unused cached_bonito_irq_mask; /* bonito */
- 
+
 +u32 loongson_nr_nodes;
 +u64 loongson_suspend_addr;
 +u32 loongson_pcache_ways;
@@ -112,7 +104,7 @@ index a6b67ccf..9ff5e74d 100644
 +			break;
 +		}
  }
- 
+
  /*
 @@ -89,7 +132,24 @@ static void wait_for_wakeup_events(void)
   */
@@ -138,12 +130,12 @@ index a6b67ccf..9ff5e74d 100644
 +		break;
 +	}
  }
- 
- 
+
+
 @@ -102,34 +162,69 @@ static void loongson_suspend_enter(void)
- 
+
  	stop_perf_counters();
- 
+
 -	cached_cpu_freq = LOONGSON_CHIPCFG(0);
 -
 -	/* Put CPU into wait mode */
@@ -177,22 +169,22 @@ index a6b67ccf..9ff5e74d 100644
 +	}
  	mmiowb();
  }
- 
+
 -void __weak mach_suspend(void)
 +void __weak mach_suspend(suspend_state_t state)
  {
  }
- 
+
 -void __weak mach_resume(void)
 +void __weak mach_resume(suspend_state_t state)
  {
  }
- 
+
  static int loongson_pm_enter(suspend_state_t state)
  {
 -	mach_suspend();
 +	mach_suspend(state);
- 
+
  	/* processor specific suspend */
 -	loongson_suspend_enter();
 +	switch(state){
@@ -218,10 +210,10 @@ index a6b67ccf..9ff5e74d 100644
 +#endif
 +		break;
 +	}
- 
+
 -	mach_resume();
 +	mach_resume(state);
- 
+
  	return 0;
  }
 @@ -138,18 +233,42 @@ static int loongson_pm_valid_state(suspend_state_t state)
@@ -242,12 +234,12 @@ index a6b67ccf..9ff5e74d 100644
 +		default:
 +			return 0;
 +		}
- 
+
  	default:
  		return 0;
  	}
  }
- 
+
 +static int loongson_pm_begin(suspend_state_t state)
 +{
 +	if (state == PM_SUSPEND_MEM)
@@ -266,46 +258,46 @@ index a6b67ccf..9ff5e74d 100644
  	.enter	= loongson_pm_enter,
 +	.end	= loongson_pm_end,
  };
- 
+
  static int __init loongson_pm_init(void)
 diff --git a/arch/mips/loongson64/lemote-2f/pm.c b/arch/mips/loongson64/lemote-2f/pm.c
-index cac4d382..493de3b6 100644
+index cac4d38..493de3b 100644
 --- a/arch/mips/loongson64/lemote-2f/pm.c
 +++ b/arch/mips/loongson64/lemote-2f/pm.c
 @@ -138,12 +138,12 @@ int wakeup_loongson(void)
  	return 0;
  }
- 
+
 -void __weak mach_suspend(void)
 +void mach_suspend(void)
  {
  	disable_mfgpt0_counter();
  }
- 
+
 -void __weak mach_resume(void)
 +void mach_resume(void)
  {
  	enable_mfgpt0_counter();
  }
 diff --git a/arch/mips/loongson64/loongson-3/Makefile b/arch/mips/loongson64/loongson-3/Makefile
-index 5090201b..f638eff4 100644
+index 44bc148..e2c735f 100644
 --- a/arch/mips/loongson64/loongson-3/Makefile
 +++ b/arch/mips/loongson64/loongson-3/Makefile
 @@ -7,4 +7,6 @@ obj-$(CONFIG_SMP)	+= smp.o
- 
+
  obj-$(CONFIG_NUMA)	+= numa.o
- 
+
 +obj-$(CONFIG_SUSPEND)	+= pm.o sleep.o
 +
  obj-$(CONFIG_RS780_HPET) += hpet.o
 diff --git a/arch/mips/loongson64/loongson-3/acpi_init.c b/arch/mips/loongson64/loongson-3/acpi_init.c
-index dbdad79e..5f7030b5 100644
+index dbdad79..5f7030b 100644
 --- a/arch/mips/loongson64/loongson-3/acpi_init.c
 +++ b/arch/mips/loongson64/loongson-3/acpi_init.c
 @@ -77,6 +77,35 @@ static void acpi_hw_clear_status(void)
  	outl(inl(ACPI_GPE0_BLK), ACPI_GPE0_BLK);
  }
- 
+
 +void acpi_sleep_prepare(void)
 +{
 +	u16 value;
@@ -340,7 +332,7 @@ index dbdad79e..5f7030b5 100644
  	u32 value;
 diff --git a/arch/mips/loongson64/loongson-3/pm.c b/arch/mips/loongson64/loongson-3/pm.c
 new file mode 100644
-index 00000000..93b74f7d
+index 0000000..93b74f7
 --- /dev/null
 +++ b/arch/mips/loongson64/loongson-3/pm.c
 @@ -0,0 +1,147 @@
@@ -493,7 +485,7 @@ index 00000000..93b74f7d
 +}
 diff --git a/arch/mips/loongson64/loongson-3/sleep.S b/arch/mips/loongson64/loongson-3/sleep.S
 new file mode 100644
-index 00000000..329c7a20
+index 0000000..329c7a2
 --- /dev/null
 +++ b/arch/mips/loongson64/loongson-3/sleep.S
 @@ -0,0 +1,172 @@
@@ -669,6 +661,3 @@ index 00000000..329c7a20
 +END(wakeup_start)
 +
 +	.set pop
--- 
-2.11.0
-
