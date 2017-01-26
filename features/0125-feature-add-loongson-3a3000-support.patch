@@ -1,0 +1,96 @@
+This patch adds Loongson-3A R3 (Loongson-3A3000) support.
+
+Original patch description:
+
+From a38095082acfb3caf5c0c5ab67b5a9851034e023 Mon Sep 17 00:00:00 2001
+From: lixuefeng <lixuefeng@loongson.cn>
+Date: Thu, 1 Dec 2016 14:28:52 +0800
+Subject: Loongson-3: Add Loongson-3A R3 (Loongson-3A3000)
+ support
+
+Change-Id: I72b43b4b0352dadfa00e7b0490e1389ea804ccf3
+
+diff --git a/linux-4.10-rc5-orig/arch/mips/include/asm/cpu.h b/linux-4.10-rc5/arch/mips/include/asm/cpu.h
+index 9a83724..255ead7 100644
+--- a/linux-4.10-rc5-orig/arch/mips/include/asm/cpu.h
++++ b/linux-4.10-rc5/arch/mips/include/asm/cpu.h
+@@ -247,6 +247,7 @@
+ #define PRID_REV_LOONGSON3B_R1	0x0006
+ #define PRID_REV_LOONGSON3B_R2	0x0007
+ #define PRID_REV_LOONGSON3A_R2	0x0008
++#define PRID_REV_LOONGSON3A_R3	0x0009
+
+ /*
+  * Older processors used to encode processor version and revision in two
+diff --git a/linux-4.10-rc5-orig/arch/mips/kernel/cpu-probe.c b/linux-4.10-rc5/arch/mips/kernel/cpu-probe.c
+index 07718bb..5025a66 100644
+--- a/linux-4.10-rc5-orig/arch/mips/kernel/cpu-probe.c
++++ b/linux-4.10-rc5/arch/mips/kernel/cpu-probe.c
+@@ -1271,6 +1271,13 @@ static inline void cpu_probe_legacy(struct cpuinfo_mips *c, unsigned int cpu)
+ 			c->cputype = CPU_VR41XX;
+ 			__cpu_name[cpu] = "NEC Vr41xx";
+ 			break;
++		case PRID_REV_LOONGSON3A_R3:
++			c->cputype = CPU_LOONGSON3;
++			__cpu_name[cpu] = "ICT Loongson-3";
++			set_elf_platform(cpu, "loongson3a");
++			set_isa(c, MIPS_CPU_ISA_M64R2);
++			__cpu_full_name[cpu] = "ICT Loongson-3A R3 (Loongson-3A3000)";
++			break;
+ 		}
+ 		break;
+ 	case PRID_IMP_R4300:
+diff --git a/linux-4.10-rc5-orig/arch/mips/loongson64/common/env.c b/linux-4.10-rc5/arch/mips/loongson64/common/env.c
+index 57d590a..5b31089 100644
+--- a/linux-4.10-rc5-orig/arch/mips/loongson64/common/env.c
++++ b/linux-4.10-rc5/arch/mips/loongson64/common/env.c
+@@ -195,6 +195,9 @@ void __init prom_init_env(void)
+ 		case PRID_REV_LOONGSON3A_R2:
+ 			cpu_clock_freq = 900000000;
+ 			break;
++		case PRID_REV_LOONGSON3A_R3:
++			cpu_clock_freq = 1500000000;
++			break;
+ 		case PRID_REV_LOONGSON3B_R1:
+ 		case PRID_REV_LOONGSON3B_R2:
+ 			cpu_clock_freq = 1000000000;
+diff --git a/linux-4.10-rc5-orig/arch/mips/loongson64/common/pm.c b/linux-4.10-rc5/arch/mips/loongson64/common/pm.c
+index 9ff5e74..7641551 100644
+--- a/linux-4.10-rc5-orig/arch/mips/loongson64/common/pm.c
++++ b/linux-4.10-rc5/arch/mips/loongson64/common/pm.c
+@@ -118,6 +118,7 @@ static void wait_for_wakeup_events(void)
+ 			LOONGSON_CHIPCFG(0) &= ~0x7;
+ 			break;
+ 		case PRID_REV_LOONGSON3A_R2:
++		case PRID_REV_LOONGSON3A_R3:
+ 		case PRID_REV_LOONGSON3B_R1:
+ 		case PRID_REV_LOONGSON3B_R2:
+ 			LOONGSON_FREQCTRL(0) &= ~0x7;
+@@ -144,6 +145,7 @@ static inline void stop_perf_counters(void)
+ 		__write_64bit_c0_register($25, 2, 0x40000000);
+ 		break;
+ 	case PRID_REV_LOONGSON3A_R2:
++	case PRID_REV_LOONGSON3A_R3:
+ 		__write_64bit_c0_register($25, 0, 0xc0000000);
+ 		__write_64bit_c0_register($25, 2, 0xc0000000);
+ 		__write_64bit_c0_register($25, 4, 0xc0000000);
+@@ -174,6 +176,7 @@ static void loongson_suspend_enter(void)
+ 		LOONGSON_CHIPCFG(0) = cached_cpu_freq;
+ 		break;
+ 	case PRID_REV_LOONGSON3A_R2:
++	case PRID_REV_LOONGSON3A_R3:
+ 	case PRID_REV_LOONGSON3B_R1:
+ 	case PRID_REV_LOONGSON3B_R2:
+ 		cached_cpu_freq = LOONGSON_FREQCTRL(0);
+diff --git a/linux-4.10-rc5-orig/arch/mips/loongson64/loongson-3/smp.c b/linux-4.10-rc5/arch/mips/loongson64/loongson-3/smp.c
+index 99aab9f..d92b9d9 100644
+--- a/linux-4.10-rc5-orig/arch/mips/loongson64/loongson-3/smp.c
++++ b/linux-4.10-rc5/arch/mips/loongson64/loongson-3/smp.c
+@@ -663,6 +663,7 @@ void play_dead(void)
+ 			(void *)CKSEG1ADDR((unsigned long)loongson3a_r1_play_dead);
+ 		break;
+ 	case PRID_REV_LOONGSON3A_R2:
++	case PRID_REV_LOONGSON3A_R3:
+ 		play_dead_at_ckseg1 =
+ 			(void *)CKSEG1ADDR((unsigned long)loongson3a_r2_play_dead);
+ 		break;
