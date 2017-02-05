@@ -1,0 +1,245 @@
+This patch adds MIPS_CPU_FTLB for Loongson-3A R2.
+
+Including the following original patches:
+
+---
+
+From 65e0eba12f20b7871c0322a6484b282a27e9c106 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Fri, 4 Nov 2016 11:19:30 +0800
+Subject: MIPS: Add MIPS_CPU_FTLB for Loongson-3A R2
+
+Loongson-3A R2 and newer CPU have FTLB, but Config0.MT is 1, so add
+MIPS_CPU_FTLB to the CPU options.
+
+Change-Id: I317f8db739804e02ae09692fd8e00de53d74aa79
+Cc: stable@vger.kernel.org
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+
+---
+
+From 14ab7310df2c311a9f2db174c541c2f7a3e4d8e1 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Thu, 1 Dec 2016 09:51:35 +0800
+Subject: MIPS: Check TLB before handle_ri_rdhwr() for
+ Loongson-3
+
+Loongson-3's micro TLB (ITLB) is not strictly a subset of JTLB. That
+means: when a JTLB entry is replaced by hardware, there may be an old
+valid entry exists in ITLB. So, a TLB miss exception may occur while
+handle_ri_rdhwr() is running because it try to access EPC's content.
+However, handle_ri_rdhwr() doesn't clear EXL, which makes a TLB Refill
+exception be treated as a TLB Invalid exception and tlbp may fail. In
+this case, if FTLB (which is usually set-associative instead of set-
+associative) is enabled, a tlbp failure will cause an invalid tlbwi,
+which will hang the whole system.
+
+This patch rename handle_ri_rdhwr_vivt to handle_ri_rdhwr_tlbp and use
+it for Loongson-3. It try to solve the same problem described as below,
+but more straightforwards.
+
+https://patchwork.linux-mips.org/patch/12591/
+
+I think Loongson-2 has the same problem, but it has no FTLB, so we just
+keep it as is.
+
+arch/mips/kernel/traps.c Hunk #2 modified by Junde Yhi.
+
+Change-Id: I90cab3e59e76d0ec6c7ecb71947c26dc388199df
+Cc: <stable@vger.kernel.org>
+Cc: Rui Wang <wangr@lemote.com>
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+
+---
+
+From 27842abf68dc6e4fd46605f0ddb921ede8498144 Mon Sep 17 00:00:00 2001
+From: Huacai Chen <chenhc@lemote.com>
+Date: Fri, 4 Nov 2016 11:25:08 +0800
+Subject: MIPS: Flush wrong invalid FTLB entry for huge page
+
+On VTLB+FTLB platforms (such as Loongson-3A R2), FTLB's pagesize is
+usually configured the same as PAGE_SIZE. In such a case, Huge page
+entry is not suitable to write in FTLB.
+
+Unfortunately, when a huge page is created, its page table entries
+haven't created immediately. Then the TLB refill handler will fetch an
+invalid page table entry which has no "HUGE" bit, and this entry may be
+written to FTLB. Since it is invalid, TLB load/store handler will then
+use tlbwi to write the valid entry at the same place. However, the
+valid entry is a huge page entry which isn't suitable for FTLB.
+
+Our solution is to modify build_huge_handler_tail. Flush the invalid
+old entry (whether it is in FTLB or VTLB, this is in order to reduce
+branches) and use tlbwr to write the valid new entry.
+
+Change-Id: Ib56585624cd72ce98f4da79ff276d857a9163e17
+Cc: stable@vger.kernel.org
+Signed-off-by: Rui Wang <wangr@lemote.com>
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+
+---
+
+From patchwork Sat Jan 21 00:56:06 2017
+From: Huacai Chen <chenhc@lemote.com>
+Date: Sat, 21 Jan 2017 08:56:06 +0800
+Subject: [RESEND, 4/4] MIPS: Ensure pmd_present() returns false after
+ pmd_mknotpresent()
+
+This patch is borrowed from ARM64 to ensure pmd_present() returns false
+after pmd_mknotpresent(). This is needed for THP.
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Huacai Chen <chenhc@lemote.com>
+
+---
+
+diff --git a/linux-4.10-rc6-orig/arch/mips/include/asm/pgtable-64.h b/linux-4.10-rc6/arch/mips/include/asm/pgtable-64.h
+index 514cbc0..ef6f007 100644
+--- a/linux-4.10-rc6-orig/arch/mips/include/asm/pgtable-64.h
++++ b/linux-4.10-rc6/arch/mips/include/asm/pgtable-64.h
+@@ -193,6 +193,11 @@ static inline int pmd_bad(pmd_t pmd)
+
+ static inline int pmd_present(pmd_t pmd)
+ {
++#ifdef CONFIG_MIPS_HUGE_TLB_SUPPORT
++	if (unlikely(pmd_val(pmd) & _PAGE_HUGE))
++		return pmd_val(pmd) & _PAGE_PRESENT;
++#endif
++
+ 	return pmd_val(pmd) != (unsigned long) invalid_pte_table;
+ }
+
+diff --git a/linux-4.10-rc6-orig/arch/mips/kernel/cpu-probe.c b/linux-4.10-rc6/arch/mips/kernel/cpu-probe.c
+index 07718bb..12422fd 100644
+--- a/linux-4.10-rc6-orig/arch/mips/kernel/cpu-probe.c
++++ b/linux-4.10-rc6/arch/mips/kernel/cpu-probe.c
+@@ -1824,7 +1824,7 @@ static inline void cpu_probe_loongson(struct cpuinfo_mips *c, unsigned int cpu)
+ 		}
+
+ 		decode_configs(c);
+-		c->options |= MIPS_CPU_TLBINV | MIPS_CPU_LDPTE;
++		c->options |= MIPS_CPU_FTLB | MIPS_CPU_TLBINV | MIPS_CPU_LDPTE;
+ 		c->writecombine = _CACHE_UNCACHED_ACCELERATED;
+ 		break;
+ 	default:
+diff --git a/linux-4.10-rc6-orig/arch/mips/kernel/genex.S b/linux-4.10-rc6/arch/mips/kernel/genex.S
+index dc0b296..52a4fdf 100644
+--- a/linux-4.10-rc6-orig/arch/mips/kernel/genex.S
++++ b/linux-4.10-rc6/arch/mips/kernel/genex.S
+@@ -448,7 +448,7 @@ NESTED(nmi_handler, PT_SIZE, sp)
+ 	BUILD_HANDLER reserved reserved sti verbose	/* others */
+
+ 	.align	5
+-	LEAF(handle_ri_rdhwr_vivt)
++	LEAF(handle_ri_rdhwr_tlbp)
+ 	.set	push
+ 	.set	noat
+ 	.set	noreorder
+@@ -467,7 +467,7 @@ NESTED(nmi_handler, PT_SIZE, sp)
+ 	.set	pop
+ 	bltz	k1, handle_ri	/* slow path */
+ 	/* fall thru */
+-	END(handle_ri_rdhwr_vivt)
++	END(handle_ri_rdhwr_tlbp)
+
+ 	LEAF(handle_ri_rdhwr)
+ 	.set	push
+diff --git a/linux-4.10-rc6-orig/arch/mips/kernel/traps.c b/linux-4.10-rc6/arch/mips/kernel/traps.c
+index 6c7f9d7..c017193 100644
+--- a/linux-4.10-rc6-orig/arch/mips/kernel/traps.c
++++ b/linux-4.10-rc6/arch/mips/kernel/traps.c
+@@ -81,7 +81,7 @@ extern asmlinkage void handle_dbe(void);
+ extern asmlinkage void handle_sys(void);
+ extern asmlinkage void handle_bp(void);
+ extern asmlinkage void handle_ri(void);
+-extern asmlinkage void handle_ri_rdhwr_vivt(void);
++extern asmlinkage void handle_ri_rdhwr_tlbp(void);
+ extern asmlinkage void handle_ri_rdhwr(void);
+ extern asmlinkage void handle_cpu(void);
+ extern asmlinkage void handle_ov(void);
+@@ -2352,9 +2352,18 @@ void __init trap_init(void)
+
+ 	set_except_vector(EXCCODE_SYS, handle_sys);
+ 	set_except_vector(EXCCODE_BP, handle_bp);
+-	set_except_vector(EXCCODE_RI, rdhwr_noopt ? handle_ri :
+-			  (cpu_has_vtag_icache ?
+-			   handle_ri_rdhwr_vivt : handle_ri_rdhwr));
++
++	if (rdhwr_noopt)
++		set_except_vector(10, handle_ri);
++	else {
++		if (cpu_has_vtag_icache)
++			set_except_vector(10, handle_ri_rdhwr_tlbp);
++		else if (current_cpu_type() == CPU_LOONGSON3)
++			set_except_vector(10, handle_ri_rdhwr_tlbp);
++		else
++			set_except_vector(10, handle_ri_rdhwr);
++	}
++
+ 	set_except_vector(EXCCODE_CPU, handle_cpu);
+ 	set_except_vector(EXCCODE_OV, handle_ov);
+ 	set_except_vector(EXCCODE_TR, handle_tr);
+diff --git a/linux-4.10-rc6-orig/arch/mips/mm/tlbex.c b/linux-4.10-rc6/arch/mips/mm/tlbex.c
+index 55ce396..2da5649 100644
+--- a/linux-4.10-rc6-orig/arch/mips/mm/tlbex.c
++++ b/linux-4.10-rc6/arch/mips/mm/tlbex.c
+@@ -762,7 +762,8 @@ static void build_huge_update_entries(u32 **p, unsigned int pte,
+ static void build_huge_handler_tail(u32 **p, struct uasm_reloc **r,
+ 				    struct uasm_label **l,
+ 				    unsigned int pte,
+-				    unsigned int ptr)
++				    unsigned int ptr,
++				    unsigned int flush)
+ {
+ #ifdef CONFIG_SMP
+ 	UASM_i_SC(p, pte, 0, ptr);
+@@ -771,6 +772,22 @@ static void build_huge_handler_tail(u32 **p, struct uasm_reloc **r,
+ #else
+ 	UASM_i_SW(p, pte, 0, ptr);
+ #endif
++	if (cpu_has_ftlb && flush) {
++		BUG_ON(!cpu_has_tlbinv);
++
++		UASM_i_MFC0(p, ptr, C0_ENTRYHI);
++		uasm_i_ori(p, ptr, ptr, MIPS_ENTRYHI_EHINV);
++		UASM_i_MTC0(p, ptr, C0_ENTRYHI);
++		build_tlb_write_entry(p, l, r, tlb_indexed);
++
++		uasm_i_xori(p, ptr, ptr, MIPS_ENTRYHI_EHINV);
++		UASM_i_MTC0(p, ptr, C0_ENTRYHI);
++		build_huge_update_entries(p, pte, ptr);
++		build_huge_tlb_write_entry(p, l, r, pte, tlb_random, 0);
++
++		return;
++	}
++
+ 	build_huge_update_entries(p, pte, ptr);
+ 	build_huge_tlb_write_entry(p, l, r, pte, tlb_indexed, 0);
+ }
+@@ -2197,7 +2214,7 @@ static void build_r4000_tlb_load_handler(void)
+ 		uasm_l_tlbl_goaround2(&l, p);
+ 	}
+ 	uasm_i_ori(&p, wr.r1, wr.r1, (_PAGE_ACCESSED | _PAGE_VALID));
+-	build_huge_handler_tail(&p, &r, &l, wr.r1, wr.r2);
++	build_huge_handler_tail(&p, &r, &l, wr.r1, wr.r2, 1);
+ #endif
+
+ 	uasm_l_nopage_tlbl(&l, p);
+@@ -2252,7 +2269,7 @@ static void build_r4000_tlb_store_handler(void)
+ 	build_tlb_probe_entry(&p);
+ 	uasm_i_ori(&p, wr.r1, wr.r1,
+ 		   _PAGE_ACCESSED | _PAGE_MODIFIED | _PAGE_VALID | _PAGE_DIRTY);
+-	build_huge_handler_tail(&p, &r, &l, wr.r1, wr.r2);
++	build_huge_handler_tail(&p, &r, &l, wr.r1, wr.r2, 1);
+ #endif
+
+ 	uasm_l_nopage_tlbs(&l, p);
+@@ -2308,7 +2325,7 @@ static void build_r4000_tlb_modify_handler(void)
+ 	build_tlb_probe_entry(&p);
+ 	uasm_i_ori(&p, wr.r1, wr.r1,
+ 		   _PAGE_ACCESSED | _PAGE_MODIFIED | _PAGE_VALID | _PAGE_DIRTY);
+-	build_huge_handler_tail(&p, &r, &l, wr.r1, wr.r2);
++	build_huge_handler_tail(&p, &r, &l, wr.r1, wr.r2, 0);
+ #endif
+
+ 	uasm_l_nopage_tlbm(&l, p);
