@@ -93,10 +93,10 @@ Signed-off-by: Huacai Chen <chenhc@lemote.com>
 
 ---
 
-diff --git a/linux-4.10-rc6-orig/arch/mips/include/asm/pgtable-64.h b/linux-4.10-rc6/arch/mips/include/asm/pgtable-64.h
+diff --git a/arch/mips/include/asm/pgtable-64.h b/arch/mips/include/asm/pgtable-64.h
 index 514cbc0..ef6f007 100644
---- a/linux-4.10-rc6-orig/arch/mips/include/asm/pgtable-64.h
-+++ b/linux-4.10-rc6/arch/mips/include/asm/pgtable-64.h
+--- a/arch/mips/include/asm/pgtable-64.h
++++ b/arch/mips/include/asm/pgtable-64.h
 @@ -193,6 +193,11 @@ static inline int pmd_bad(pmd_t pmd)
 
  static inline int pmd_present(pmd_t pmd)
@@ -109,10 +109,10 @@ index 514cbc0..ef6f007 100644
  	return pmd_val(pmd) != (unsigned long) invalid_pte_table;
  }
 
-diff --git a/linux-4.10-rc6-orig/arch/mips/kernel/cpu-probe.c b/linux-4.10-rc6/arch/mips/kernel/cpu-probe.c
+diff --git a/arch/mips/kernel/cpu-probe.c b/arch/mips/kernel/cpu-probe.c
 index 07718bb..12422fd 100644
---- a/linux-4.10-rc6-orig/arch/mips/kernel/cpu-probe.c
-+++ b/linux-4.10-rc6/arch/mips/kernel/cpu-probe.c
+--- a/arch/mips/kernel/cpu-probe.c
++++ b/arch/mips/kernel/cpu-probe.c
 @@ -1824,7 +1824,7 @@ static inline void cpu_probe_loongson(struct cpuinfo_mips *c, unsigned int cpu)
  		}
 
@@ -122,10 +122,10 @@ index 07718bb..12422fd 100644
  		c->writecombine = _CACHE_UNCACHED_ACCELERATED;
  		break;
  	default:
-diff --git a/linux-4.10-rc6-orig/arch/mips/kernel/genex.S b/linux-4.10-rc6/arch/mips/kernel/genex.S
+diff --git a/arch/mips/kernel/genex.S b/arch/mips/kernel/genex.S
 index dc0b296..52a4fdf 100644
---- a/linux-4.10-rc6-orig/arch/mips/kernel/genex.S
-+++ b/linux-4.10-rc6/arch/mips/kernel/genex.S
+--- a/arch/mips/kernel/genex.S
++++ b/arch/mips/kernel/genex.S
 @@ -448,7 +448,7 @@ NESTED(nmi_handler, PT_SIZE, sp)
  	BUILD_HANDLER reserved reserved sti verbose	/* others */
 
@@ -144,10 +144,10 @@ index dc0b296..52a4fdf 100644
 
  	LEAF(handle_ri_rdhwr)
  	.set	push
-diff --git a/linux-4.10-rc6-orig/arch/mips/kernel/traps.c b/linux-4.10-rc6/arch/mips/kernel/traps.c
+diff --git a/arch/mips/kernel/traps.c b/arch/mips/kernel/traps.c
 index 6c7f9d7..c017193 100644
---- a/linux-4.10-rc6-orig/arch/mips/kernel/traps.c
-+++ b/linux-4.10-rc6/arch/mips/kernel/traps.c
+--- a/arch/mips/kernel/traps.c
++++ b/arch/mips/kernel/traps.c
 @@ -81,7 +81,7 @@ extern asmlinkage void handle_dbe(void);
  extern asmlinkage void handle_sys(void);
  extern asmlinkage void handle_bp(void);
@@ -179,10 +179,10 @@ index 6c7f9d7..c017193 100644
  	set_except_vector(EXCCODE_CPU, handle_cpu);
  	set_except_vector(EXCCODE_OV, handle_ov);
  	set_except_vector(EXCCODE_TR, handle_tr);
-diff --git a/linux-4.10-rc6-orig/arch/mips/mm/tlbex.c b/linux-4.10-rc6/arch/mips/mm/tlbex.c
+diff --git a/arch/mips/mm/tlbex.c b/arch/mips/mm/tlbex.c
 index 55ce396..2da5649 100644
---- a/linux-4.10-rc6-orig/arch/mips/mm/tlbex.c
-+++ b/linux-4.10-rc6/arch/mips/mm/tlbex.c
+--- a/arch/mips/mm/tlbex.c
++++ b/arch/mips/mm/tlbex.c
 @@ -762,7 +762,8 @@ static void build_huge_update_entries(u32 **p, unsigned int pte,
  static void build_huge_handler_tail(u32 **p, struct uasm_reloc **r,
  				    struct uasm_label **l,
